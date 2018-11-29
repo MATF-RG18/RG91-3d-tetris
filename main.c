@@ -3,19 +3,26 @@
 #include <time.h>
 #include <stdbool.h>
 
+#define TIMER_INTERVAL 20
+#define TIMER_ID 1
+
 /* Definisemo granice parametara povrsi */
 #define U_FROM (-4)
 #define V_FROM (-4)
 #define U_TO (4)
 #define V_TO (4)
-#define C_FROM (0)
-#define C_TO (14)
+#define C_FROM (-6)
+#define C_TO (4)
 #define MAX 30
 
 /*Definisemo status figure ako je pala false ako nije true*/
 /*bool fig_status=true;*/
 /*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica*/
 float a=0.0,b=0.0;
+/*Ovda pratimo pomeranje po z osi*/
+float c=0.0;
+/* smanjujemo dimenzije po z osi*/
+float resize = 1.0;
 
 /*Inicijalizacija niza za pakovanje random brojeva*/
 int r[MAX];
@@ -25,6 +32,7 @@ int i=0;
 static void on_display(void);
 static void on_reshape(int width, int height);
 static void on_keyboard(unsigned char key, int x, int y);
+static void on_timer(int id);
 static void on_arrow(int key, int x, int y);
 void rotiraj(void);
 
@@ -37,6 +45,12 @@ static void drawFigura3();
 static void drawFigura4();
 static void drawFigura5();
 static void drawFigura6();
+
+/*parametar za proveru da li je animacija pokrenuta*/
+int animation_ongoing;
+
+/*Vreme proteklo od pocetka animacije*/
+float time_passed;
 
 /*Definisemo strukturu u kojoj cemo cuvati stanja rotacije */
 struct rot_stanje {
@@ -80,6 +94,9 @@ int main(int argc, char **argv)
     /* Ulazi se u glavnu petlju. */
     glutMainLoop();
     
+    animation_ongoing = 0;
+    time_passed = 0;
+    
     return 0;
 }
 static void on_reshape(int width, int height)
@@ -101,26 +118,49 @@ static void on_display(void)
 	/* Postavlja se vidna tacka. */
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0, 0, 4.5, 0, 0, 0, 0, 1, 0);
+    gluLookAt(0, 0, 14, 0, 0, 0, 0, 1, 0);
+    
+    
+    /*Crtamo koordinatni sistem radi orijentacije prilikom izrade projekta*/
+    glBegin(GL_LINES);
+        glColor3f(1,0,0);
+        glVertex3f(0,0,0);
+        glVertex3f(5,0,0);
+        
+        glColor3f(0,1,0);
+        glVertex3f(0,0,0);
+        glVertex3f(0,5,0);
+        
+        glColor3f(0,0,1);
+        glVertex3f(0,0,0);
+        glVertex3f(0,0,5);
+    glEnd();
+    
 
     /* Crtamo delove scene */
     drawMreza();
     /*Pomeramo teme kocke u koordinatni pocetak */
-    glTranslatef(0.5,0.5,0.5);
+    glTranslatef(0.5,0.5,4.5);
     
     /* Primenjujemo translaciju ne klik strelice*/
-    glTranslatef(a,b,0);
+    glTranslatef(a,b,c);
     
-    /* Primenjujemo rotaciju  glScalef(0,0,0.2);*/
+    /* Primenjujemo rotaciju*/
     glRotatef(r_stanje.x, 1, 0, 0);
     glRotatef(r_stanje.y, 0, 1, 0);
     glRotatef(r_stanje.z, 0, 0, 1);
+
     
-    /*Ako smo dosli do kraja niza vracamo se na pocetak*/
+    if(c <= -10){
+        animation_ongoing = 0;
+        
+     }
+    /*Ako smo dosli do kraja RANDOM niza  vracamo se na pocetak*/
     if(i == MAX){
         i=0;
     }
     /*Crtamo figuru*/
+    
     figure(r[i]);
     
     /* Nova slika se salje na ekran. */
@@ -183,6 +223,18 @@ static void on_keyboard(unsigned char key, int x, int y)
     case 27:
         /* Zavrsava se program. */
         exit(0);
+        break;
+    case ' ':
+        /*Pokrecemo animaciju.*/
+        if(!animation_ongoing){
+            animation_ongoing = 1;
+            glutTimerFunc(TIMER_INTERVAL,on_timer, TIMER_ID);
+        }
+        break;
+    case 'p':
+    case 'P':
+        /* Zaustavlja se animacija. */
+        animation_ongoing = 0;
         break;        
     case 'a':
     case 'A':
@@ -210,6 +262,20 @@ static void on_keyboard(unsigned char key, int x, int y)
   }
 }
 
+static void on_timer(int id)
+{
+    /*Povecavamo proteklo vreme.*/
+    time_passed +=0.01;
+    
+    
+    glutPostRedisplay();
+    
+    if(animation_ongoing){
+        c = c-0.04;
+        glutTimerFunc(TIMER_INTERVAL,on_timer,TIMER_ID);
+    }
+}
+
 static void on_arrow(int key, int x, int y)
 {
     switch (key) {
@@ -231,10 +297,7 @@ static void on_arrow(int key, int x, int y)
 
 static void drawMreza()
 {
-    /* definisemo ivicu polja u mrezi */
-    float size = 0.1;
-    /* smanjujemo dimenzije po z osi*/
-    float resize = 0.2;
+    /*mreza se nalazi na saponu od -4 do 4 po x osi (oznaka u) i y osi (oznaka v) i na rasponu od -6 do 4 po z osi (oznaka c)*/
     int u,v,c;
     /* ukljucujemo iscrtavanje okvira kvadrata */
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -244,12 +307,12 @@ static void drawMreza()
     	glBegin(GL_QUAD_STRIP);
        	 	glColor3f(0.9, 0.9, 0.9);
 		u=U_FROM;
-		glVertex3f(u*size , -v*size, c*resize);
-        glVertex3f(u*size , -(v+1)*size, c*resize);
+		glVertex3f(u , -v, c);
+        glVertex3f(u , -(v+1), c);
 		for(u=U_FROM+1; u<=U_TO; u++){
-        		glVertex3f(u*size ,- v * size, c*resize);
-        		glVertex3f(u*size, - (v+1) *size, c*resize);
-	}
+        		glVertex3f(u , - v , c);
+        		glVertex3f(u , -(v+1) , c);
+        }
 
     	glEnd();
     }
@@ -259,8 +322,8 @@ static void drawMreza()
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.9, 0.2, 0.7);
         for(c=C_FROM; c <= C_TO; c++){
-            glVertex3f(u*size , -v*size, c*resize);
-            glVertex3f((u+1)*size , -v*size, c*resize);
+            glVertex3f(u , -v, c);
+            glVertex3f((u+1) , -v, c);
         }
     glEnd();
     }
@@ -269,8 +332,8 @@ static void drawMreza()
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.2, 0.5, 0.7);
         for(c=C_FROM; c <= C_TO; c++){
-            glVertex3f(u*size , v*size, c*resize);
-            glVertex3f((u+1)*size , v*size, c*resize);
+            glVertex3f(u , v, c);
+            glVertex3f((u+1) , v, c);
         }
     glEnd();
     }
@@ -280,8 +343,8 @@ static void drawMreza()
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.8, 0.8, 0.1);
         for(c=C_FROM; c <= C_TO; c++){
-            glVertex3f(-u*size , -v*size, c*resize);
-            glVertex3f(-u*size , -(v+1)*size, c*resize);
+            glVertex3f(-u , -v , c);
+            glVertex3f(-u , -(v+1) , c);
         }
     glEnd();
     }
@@ -290,8 +353,8 @@ static void drawMreza()
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.2, 0.6, 0.3);
         for(c=C_FROM; c <= C_TO; c++){
-            glVertex3f(u*size , -v*size, c*resize);
-            glVertex3f(u*size , -(v+1)*size, c*resize);
+            glVertex3f(u , -v , c);
+            glVertex3f(u , -(v+1) , c);
         }
     glEnd();
     }
@@ -313,8 +376,9 @@ static void drawFigura2()
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
     glPushMatrix();
-        glutSolidCube(1);
-        
+        glPushMatrix();
+            glutSolidCube(1);
+        glPopMatrix();
         glPushMatrix();
             glTranslatef(1,0,0);
             glutSolidCube(1);
@@ -356,7 +420,7 @@ static void drawFigura4()
 {
     glColor3f(0.3,.8,.4);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    
+   
     glPushMatrix();
         glutSolidCube(1);
     
