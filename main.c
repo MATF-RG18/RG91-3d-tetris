@@ -399,7 +399,7 @@ static void drawFigura2()
     lim.z_min=0;
     lim.z_max=1;
     
-    glColor3f(0.8,.6,.8);
+    glColor3f(0.9,0.9,0.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
     glPushMatrix();
@@ -461,7 +461,7 @@ static void drawFigura4()
     lim.z_min=0;
     lim.z_max=1;
     
-    glColor3f(0.3,.8,.4);
+    glColor3f(0.0,.8,.9);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
    
     glPushMatrix();
@@ -519,7 +519,7 @@ static void drawFigura6()
     lim.z_min=0;
     lim.z_max=1;
     
-    glColor3f(0.5,.1,.2);
+    glColor3f(1.0,0.5,0.1);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
     glPushMatrix();
