@@ -59,6 +59,13 @@ struct rot_stanje {
     int t_osa; /* trenutna osa rotacije: 0 for x, 1 for y, 2 for z */
 } r_stanje;
 
+/*Definisemo minimume i maksimume da bismo napravili ogranicenja u okviru mreze*/
+struct limits{
+        int x_min,x_max;
+        int y_min,y_max;
+        int z_min,z_max;
+}lim;
+
 int main(int argc, char **argv)
 {
     /* Inicijalizuje se GLUT. */
@@ -280,16 +287,20 @@ static void on_arrow(int key, int x, int y)
 {
     switch (key) {
         case GLUT_KEY_UP:
-            b++;
+            if(lim.y_max+b < V_TO)
+                b++;
             break;
         case GLUT_KEY_DOWN:
-            b--;
+            if(lim.y_min+b > V_FROM)
+                b--;
             break;
         case GLUT_KEY_RIGHT:
-            a++;
+            if(lim.x_max+a < U_TO)
+                a++;
             break;
         case GLUT_KEY_LEFT:
-            a--;
+            if(lim.x_min+a > U_FROM)
+                a--;
             break;
   }
   glutPostRedisplay();
@@ -362,6 +373,14 @@ static void drawMreza()
 }
 static void drawFigura1()
 {
+    /*Inicijalizujemo min i max za svaku osu figure 1*/
+    lim.x_min=0;
+    lim.x_max=1;
+    lim.y_min=0;
+    lim.y_max=1;
+    lim.z_min=0;
+    lim.z_max=1;
+    
     glColor3f(0.2,.1,.9);
     glPushMatrix();
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -372,6 +391,14 @@ static void drawFigura1()
 
 static void drawFigura2()
 {
+    /*Inicijalizujemo min i max za svaku osu figure 2*/
+    lim.x_min=-1;
+    lim.x_max=2;
+    lim.y_min=0;
+    lim.y_max=2;
+    lim.z_min=0;
+    lim.z_max=1;
+    
     glColor3f(0.8,.6,.8);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -397,6 +424,14 @@ static void drawFigura2()
 
 static void drawFigura3()
 {
+    /*Inicijalizujemo min i max za svaku osu figure 3*/
+    lim.x_min=0;
+    lim.x_max=2;
+    lim.y_min=-1;
+    lim.y_max=2;
+    lim.z_min=0;
+    lim.z_max=1;
+    
     glColor3f(0.7,.1,.3);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -418,6 +453,14 @@ static void drawFigura3()
 
 static void drawFigura4()
 {
+    /*Inicijalizujemo min i max za svaku osu figure 4*/
+    lim.x_min=-1;
+    lim.x_max=2;
+    lim.y_min=-1;
+    lim.y_max=1;
+    lim.z_min=0;
+    lim.z_max=1;
+    
     glColor3f(0.3,.8,.4);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
    
@@ -439,6 +482,14 @@ static void drawFigura4()
 
 static void drawFigura5()
 {
+    /*Inicijalizujemo min i max za svaku osu figure 5*/
+    lim.x_min=0;
+    lim.x_max=2;
+    lim.y_min=-1;
+    lim.y_max=1;
+    lim.z_min=0;
+    lim.z_max=1;
+    
     glColor3f(0.5,.9,.2);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -460,6 +511,14 @@ static void drawFigura5()
 
 static void drawFigura6()
 {
+    /*Inicijalizujemo min i max za svaku osu figure 6*/
+    lim.x_min=-1;
+    lim.x_max=3;
+    lim.y_min=0;
+    lim.y_max=1;
+    lim.z_min=0;
+    lim.z_max=1;
+    
     glColor3f(0.5,.1,.2);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
