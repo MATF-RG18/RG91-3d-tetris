@@ -73,7 +73,7 @@ int main(int argc, char **argv)
     glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
     
     /* Kreira se prozor. */
-    glutInitWindowSize(500, 500);
+    glutInitWindowSize(600, 500);
     glutInitWindowPosition(100, 100);
     glutCreateWindow(argv[0]);
 
@@ -132,22 +132,34 @@ static void on_display(void)
     glBegin(GL_LINES);
         glColor3f(1,0,0);
         glVertex3f(0,0,0);
-        glVertex3f(5,0,0);
+        glVertex3f(10,0,0);
         
         glColor3f(0,1,0);
         glVertex3f(0,0,0);
-        glVertex3f(0,5,0);
+        glVertex3f(0,10,0);
         
         glColor3f(0,0,1);
         glVertex3f(0,0,0);
-        glVertex3f(0,0,5);
+        glVertex3f(0,0,10);
     glEnd();
     
-
+    /*Ako smo dosli do kraja RANDOM niza  vracamo se na pocetak*/
+    if(i == MAX){
+        i=0;
+    }
+    
     /* Crtamo delove scene */
     drawMreza();
     /*Pomeramo teme kocke u koordinatni pocetak */
     glTranslatef(0.5,0.5,4.5);
+ 
+    /*Crtamo umanjeno sledecu figuru*/;
+    glPushMatrix();
+        glScalef(0.5,0.5,0.5);
+        glTranslatef(8.5,4,1);
+
+        figure(r[i+1]);
+    glPopMatrix();
     
     /* Primenjujemo translaciju ne klik strelice*/
     glTranslatef(a,b,c);
@@ -162,10 +174,7 @@ static void on_display(void)
         animation_ongoing = 0;
         
      }
-    /*Ako smo dosli do kraja RANDOM niza  vracamo se na pocetak*/
-    if(i == MAX){
-        i=0;
-    }
+
     /*Crtamo figuru*/
     
     figure(r[i]);
@@ -512,10 +521,10 @@ static void drawFigura5()
 static void drawFigura6()
 {
     /*Inicijalizujemo min i max za svaku osu figure 6*/
-    lim.x_min=-1;
-    lim.x_max=3;
-    lim.y_min=0;
-    lim.y_max=1;
+    lim.x_min=0;
+    lim.x_max=1;
+    lim.y_min=-1;
+    lim.y_max=3;
     lim.z_min=0;
     lim.z_max=1;
     
@@ -525,15 +534,15 @@ static void drawFigura6()
     glPushMatrix();
         glutSolidCube(1);
     
-        glTranslatef(1,0,0);
+        glTranslatef(0,1,0);
         glutSolidCube(1);
-        glTranslatef(-1,0,0);
+        glTranslatef(0,-1,0);
     
-        glTranslatef(2,0,0);
+        glTranslatef(0,2,0);
         glutSolidCube(1);
-        glTranslatef(-2,0,0);
+        glTranslatef(0,-2,0);
     
-        glTranslatef(-1,0,0);
+        glTranslatef(0,-1,0);
         glutSolidCube(1);
     glPopMatrix();
 }
