@@ -21,8 +21,15 @@
 float a=0.0,b=0.0;
 /*Ovda pratimo pomeranje po z osi*/
 float c=0.0;
-/* smanjujemo dimenzije po z osi*/
-float resize = 1.0;
+/*Promenljive koje pamte koordinate misa*/
+int mouse_x = 0;
+int mouse_y = 0;
+
+/* Dimenzije prozora */
+static int window_width, window_height;
+
+/* Kumulativana matrica rotacije. */
+static float matrix[16];
 
 /*Inicijalizacija niza za pakovanje random brojeva*/
 int r[MAX];
@@ -34,6 +41,8 @@ static void on_reshape(int width, int height);
 static void on_keyboard(unsigned char key, int x, int y);
 static void on_timer(int id);
 static void on_arrow(int key, int x, int y);
+static void on_mouse(int  button, int state, int x, int y);
+static void on_motion(int x, int y);
 void rotiraj(void);
 
 /* Deklaracija funkcija za crtanje */
@@ -73,7 +82,7 @@ int main(int argc, char **argv)
     glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
     
     /* Kreira se prozor. */
-    glutInitWindowSize(600, 500);
+    glutInitWindowSize(700, 500);
     glutInitWindowPosition(100, 100);
     glutCreateWindow(argv[0]);
 
@@ -82,6 +91,17 @@ int main(int argc, char **argv)
 	glutReshapeFunc(on_reshape);
     glutKeyboardFunc(on_keyboard);
     glutSpecialFunc(on_arrow);
+    glutMouseFunc(on_mouse);
+    glutMotionFunc(on_motion);
+    
+    /*Inicijalizijem globalne promenljive za pamcenje koordinata misa*/
+    mouse_x = 0;
+    mouse_y = 0;
+    
+    /* Inicijalizujemo matricu rotacije. */
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
     
     /*Inicijalizujemo stanje rotacije*/
     r_stanje.rotacije = false;
@@ -108,6 +128,10 @@ int main(int argc, char **argv)
 }
 static void on_reshape(int width, int height)
 {
+    /* Pamte se sirina i visina prozora. */
+    window_width = width;
+    window_height = height;
+    
     /* Postavlja se viewport. */
     glViewport(0, 0, width, height);
 
@@ -127,6 +151,8 @@ static void on_display(void)
     glLoadIdentity();
     gluLookAt(0, 0, 14, 0, 0, 0, 0, 1, 0);
     
+    /* Primenjuje se matrica rotacije. */
+    glMultMatrixf(matrix);
     
     /*Crtamo koordinatni sistem radi orijentacije prilikom izrade projekta*/
     glBegin(GL_LINES);
@@ -156,29 +182,32 @@ static void on_display(void)
     /*Crtamo umanjeno sledecu figuru*/;
     glPushMatrix();
         glScalef(0.5,0.5,0.5);
-        glTranslatef(8.5,4,1);
+        glTranslatef(9.5,4,1);
 
         figure(r[i+1]);
     glPopMatrix();
+    glPushMatrix();
+        /* Primenjujemo translaciju ne klik strelice*/
+        glTranslatef(a,b,c);
     
-    /* Primenjujemo translaciju ne klik strelice*/
-    glTranslatef(a,b,c);
-    
-    /* Primenjujemo rotaciju*/
-    glRotatef(r_stanje.x, 1, 0, 0);
-    glRotatef(r_stanje.y, 0, 1, 0);
-    glRotatef(r_stanje.z, 0, 0, 1);
+        /* Primenjujemo rotaciju*/
+        glRotatef(r_stanje.x, 1, 0, 0);
+        glRotatef(r_stanje.y, 0, 1, 0);
+        glRotatef(r_stanje.z, 0, 0, 1);
 
+        /*Crtamo figuru*/
+    
+        figure(r[i]);
+    glPopMatrix();
+    
+    /*Zaustavljanje*/
     
     if(c <= -10){
         animation_ongoing = 0;
-        
+        time_passed = 0;
+        i++;
      }
-
-    /*Crtamo figuru*/
-    
-    figure(r[i]);
-    
+     
     /* Nova slika se salje na ekran. */
     glutSwapBuffers();
 }
@@ -313,6 +342,43 @@ static void on_arrow(int key, int x, int y)
             break;
   }
   glutPostRedisplay();
+}
+
+static void on_mouse(int buttun, int state, int x, int y)
+{
+    /* Pamti se pozicija pokazivaca misa. */
+    mouse_x = x;
+    mouse_y = y;
+}
+
+static void on_motion(int x, int y)
+{
+    /* Promene pozicije pokazivaca misa. */
+    int delta_x, delta_y;
+
+    /* Izracunavaju se promene pozicije pokazivaca misa. */
+    delta_x = x - mouse_x;
+    delta_y = y - mouse_y;
+
+    /* Pamti se nova pozicija pokazivaca misa. */
+    mouse_x = x;
+    mouse_y = y;
+
+    /* Izracunava se nova matrica rotacije. */
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+        glLoadIdentity();
+        /*Vrsimo rotiranje samo po y osi*/
+        glRotatef(45 * (float) delta_x / window_width, 0, 1, 0);
+        glRotatef(45 * (float) delta_y / window_height, 0, 1, 0);
+        glMultMatrixf(matrix);
+
+        glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
+    glPopMatrix();
+
+    /* Forsira se ponovno iscrtavanje prozora. */
+    glutPostRedisplay();
+
 }
 
 static void drawMreza()
