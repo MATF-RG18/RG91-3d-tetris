@@ -11,8 +11,8 @@
 #define V_FROM (-4)
 #define U_TO (4)
 #define V_TO (4)
-#define C_FROM (-6)
-#define C_TO (4)
+#define C_FROM (0)
+#define C_TO (10)
 #define MAX 30
 
 /*Definisemo status figure ako je pala false ako nije true*/
@@ -34,6 +34,9 @@ static float matrix[16];
 /*Inicijalizacija niza za pakovanje random brojeva*/
 int r[MAX];
 int i=0;
+
+/*Promenljiva kojom detektujemo da je figura spustna i iscrtamo je */
+int drop = 0;
 
 /* Deklaracije callback funkcija. */
 static void on_display(void);
@@ -113,10 +116,20 @@ int main(int argc, char **argv)
     for(i=0; i<MAX; i++){
         r[i]=rand()/(RAND_MAX/6);
     }
+
+	/*Inicijalizujemo matricu stanja*/
+	
     
     /* Obavlja se OpenGL inicijalizacija. */
     glClearColor(0, 0, 0, 0);
 	glEnable(GL_DEPTH_TEST);
+    
+    /*Ne radii*/
+    
+    if(drop != 0){
+        figure(r[i]);
+        i++;
+    }
 	
     /* Ulazi se u glavnu petlju. */
     glutMainLoop();
@@ -149,7 +162,7 @@ static void on_display(void)
 	/* Postavlja se vidna tacka. */
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(0, 0, 14, 0, 0, 0, 0, 1, 0);
+    gluLookAt(0, 0, 18, 0, 0, 0, 0, 1, 0);
     
     /* Primenjuje se matrica rotacije. */
     glMultMatrixf(matrix);
@@ -177,12 +190,13 @@ static void on_display(void)
     /* Crtamo delove scene */
     drawMreza();
     /*Pomeramo teme kocke u koordinatni pocetak */
-    glTranslatef(0.5,0.5,4.5);
+    glTranslatef(0.5,0.5,10.5);
  
     /*Crtamo umanjeno sledecu figuru*/;
     glPushMatrix();
+        glTranslatef(4.5,2,0);
         glScalef(0.5,0.5,0.5);
-        glTranslatef(9.5,4,1);
+        
 
         figure(r[i+1]);
     glPopMatrix();
@@ -196,7 +210,6 @@ static void on_display(void)
         glRotatef(r_stanje.z, 0, 0, 1);
 
         /*Crtamo figuru*/
-    
         figure(r[i]);
     glPopMatrix();
     
@@ -205,12 +218,13 @@ static void on_display(void)
     if(c <= -10){
         animation_ongoing = 0;
         time_passed = 0;
-        i++;
+        drop++;
      }
      
     /* Nova slika se salje na ekran. */
     glutSwapBuffers();
 }
+
 void figure(int r)
 {
     /*Nasumicno biramo figuru koju cemo iscrtati*/
