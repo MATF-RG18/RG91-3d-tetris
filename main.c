@@ -1,7 +1,9 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <GL/glut.h>
 #include <time.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #define TIMER_INTERVAL 20
 #define TIMER_ID 1
@@ -20,7 +22,7 @@
 /*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica*/
 float a=0.0,b=0.0;
 /*Ovda pratimo pomeranje po z osi*/
-float c=0.0;
+float q=0.0;
 /*Promenljive koje pamte koordinate misa*/
 int mouse_x = 0;
 int mouse_y = 0;
@@ -57,6 +59,15 @@ static void drawFigura3();
 static void drawFigura4();
 static void drawFigura5();
 static void drawFigura6();
+
+/*Funkcije za alokaciju i dealokaiju matrice stanja*/
+int ***mat;
+int ***alloc_mat(int zlen, int ylen, int xlen);
+void free_mat(int ***mat, int zlen, int ylen);
+
+/*Pamtimo spustene figure i crtamo ih*/
+void drawMatricaStanja(void);
+void azurirajMatricaStanja(void);
 
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
@@ -106,6 +117,13 @@ int main(int argc, char **argv)
     glLoadIdentity();
     glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
     
+    /* Alociramo memoriju za matricu stanja mreze u kojoj pamtimo
+     * prethodno spustene figure,i na osnovu toga vrsimo 
+     * detekciju sudara sa trenutnom figurom */
+    mat=alloc_mat(11,9,9);
+    if(mat == NULL)
+        exit(EXIT_FAILURE);
+    
     /*Inicijalizujemo stanje rotacije*/
     r_stanje.rotacije = false;
     r_stanje.x = r_stanje.y = r_stanje.z = 0.0f;
@@ -116,9 +134,17 @@ int main(int argc, char **argv)
     for(i=0; i<MAX; i++){
         r[i]=rand()/(RAND_MAX/6);
     }
-
-	/*Inicijalizujemo matricu stanja*/
-	
+    
+	int u,v,c;
+    /*Inicijalizujemo matricu stanja*/
+	for(c = 0; c < 11; c++){
+        for(v = 0; v < 9; v++){
+            for(u = 0; u < 9; u++){
+                mat[c][v][u]=0;
+            }
+        }
+    }
+    
     
     /* Obavlja se OpenGL inicijalizacija. */
     glClearColor(0, 0, 0, 0);
@@ -134,8 +160,7 @@ int main(int argc, char **argv)
     /* Ulazi se u glavnu petlju. */
     glutMainLoop();
     
-    animation_ongoing = 0;
-    time_passed = 0;
+
     
     return 0;
 }
@@ -192,17 +217,15 @@ static void on_display(void)
     /*Pomeramo teme kocke u koordinatni pocetak */
     glTranslatef(0.5,0.5,10.5);
  
-    /*Crtamo umanjeno sledecu figuru*/;
+    /*Crtamo umanjeno sledecu figuru i smestamo je u gornji desni ugao pored mreze*/
     glPushMatrix();
-        glTranslatef(4.5,2,0);
+        glTranslatef(4.3,2,0);
         glScalef(0.5,0.5,0.5);
-        
-
         figure(r[i+1]);
     glPopMatrix();
     glPushMatrix();
         /* Primenjujemo translaciju ne klik strelice*/
-        glTranslatef(a,b,c);
+        glTranslatef(a,b,q);
     
         /* Primenjujemo rotaciju*/
         glRotatef(r_stanje.x, 1, 0, 0);
@@ -215,7 +238,7 @@ static void on_display(void)
     
     /*Zaustavljanje*/
     
-    if(c <= -10){
+    if(q <= -10){
         animation_ongoing = 0;
         time_passed = 0;
         drop++;
@@ -330,7 +353,7 @@ static void on_timer(int id)
     glutPostRedisplay();
     
     if(animation_ongoing){
-        c = c-0.04;
+        q = q-0.04;
         glutTimerFunc(TIMER_INTERVAL,on_timer,TIMER_ID);
     }
 }
@@ -460,6 +483,7 @@ static void drawMreza()
     }
 
 }
+
 static void drawFigura1()
 {
     /*Inicijalizujemo min i max za svaku osu figure 1*/
@@ -625,4 +649,62 @@ static void drawFigura6()
         glTranslatef(0,-1,0);
         glutSolidCube(1);
     glPopMatrix();
+}
+
+void drawMatricaStanja(void)
+{
+    
+}
+
+void azurirajMatricaStanja(void)
+{
+    
+}
+
+int ***alloc_mat(int zlen, int ylen, int xlen)
+{
+    
+    int u, v;
+
+    if ((mat = malloc(zlen * sizeof(*mat))) == NULL) {
+        perror("malloc 1");
+        return NULL;
+    }
+
+    for (u=0; u < zlen; ++u)
+        mat[u] = NULL;
+
+    for (u=0; u < zlen; ++u)
+        if ((mat[u] = malloc(ylen * sizeof(*mat[u]))) == NULL) {
+            perror("malloc 2");
+            free_mat(mat, zlen, ylen);
+            return NULL;
+        }
+
+    for (u=0; u < zlen; ++u)
+        for (v=0; v < ylen; ++v)
+            mat[u][v] = NULL;
+
+    for (u=0; u < zlen; ++u)
+        for (v=0; v < ylen; ++v)
+            if ((mat[u][v] = malloc(xlen * sizeof (*mat[u][v]))) == NULL) {
+                perror("malloc 3");
+                free_mat(mat, zlen, ylen);
+                return NULL;
+            }
+
+    return mat;
+}
+void free_mat(int ***mat, int zlen, int ylen)
+{
+    int u, v;
+
+    for (u=0; u < zlen; ++u) {
+        if (mat[u] != NULL) {
+            for (v=0; v < ylen; ++v)
+                free(mat[u][v]);
+            free(mat[u]);
+        }
+    }
+    free(mat);
 }
