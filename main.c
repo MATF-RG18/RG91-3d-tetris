@@ -16,13 +16,16 @@
 #define C_FROM (0)
 #define C_TO (10)
 #define MAX 30
+#define Z_MAX 11
+#define XY_MAX 8
 
 /*Definisemo status figure ako je pala false ako nije true*/
 /*bool fig_status=true;*/
 /*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica*/
-float a=0.0,b=0.0;
+int a=0,b=0;
 /*Ovda pratimo pomeranje po z osi*/
-float q=0.0;
+float q=10.5;
+float q1=0.0;
 /*Promenljive koje pamte koordinate misa*/
 int mouse_x = 0;
 int mouse_y = 0;
@@ -120,7 +123,7 @@ int main(int argc, char **argv)
     /* Alociramo memoriju za matricu stanja mreze u kojoj pamtimo
      * prethodno spustene figure,i na osnovu toga vrsimo 
      * detekciju sudara sa trenutnom figurom */
-    mat=alloc_mat(11,9,9);
+    mat=alloc_mat(Z_MAX,XY_MAX,XY_MAX);
     if(mat == NULL)
         exit(EXIT_FAILURE);
     
@@ -137,31 +140,21 @@ int main(int argc, char **argv)
     
 	int u,v,c;
     /*Inicijalizujemo matricu stanja*/
-	for(c = 0; c < 11; c++){
-        for(v = 0; v < 9; v++){
-            for(u = 0; u < 9; u++){
+	for(c = 0; c < Z_MAX; c++){
+        for(v = 0; v < XY_MAX; v++){
+            for(u = 0; u < XY_MAX; u++){
                 mat[c][v][u]=0;
             }
         }
     }
     
-    
     /* Obavlja se OpenGL inicijalizacija. */
     glClearColor(0, 0, 0, 0);
 	glEnable(GL_DEPTH_TEST);
-    
-    /*Ne radii*/
-    
-    if(drop != 0){
-        figure(r[i]);
-        i++;
-    }
 	
     /* Ulazi se u glavnu petlju. */
     glutMainLoop();
-    
 
-    
     return 0;
 }
 static void on_reshape(int width, int height)
@@ -178,7 +171,24 @@ static void on_reshape(int width, int height)
     glLoadIdentity();
     gluPerspective(60, (float) width / height, 1, 1500);
 }
-
+static void koordinatni(void)
+{
+    /*Crtamo koordinatni sistem radi orijentacije 
+     *prilikom izrade projekta*/
+    glBegin(GL_LINES);
+        glColor3f(1,0,0);
+        glVertex3f(-10,0,0);
+        glVertex3f(10,0,0);
+        
+        glColor3f(0,1,0);
+        glVertex3f(0,-10,0);
+        glVertex3f(0,10,0);
+        
+        glColor3f(0,0,1);
+        glVertex3f(0,0,-10);
+        glVertex3f(0,0,10);
+    glEnd();
+}
 static void on_display(void)
 {
     /* Postavlja se boja svih piksela na zadatu boju pozadine. */
@@ -192,57 +202,52 @@ static void on_display(void)
     /* Primenjuje se matrica rotacije. */
     glMultMatrixf(matrix);
     
-    /*Crtamo koordinatni sistem radi orijentacije prilikom izrade projekta*/
-    glBegin(GL_LINES);
-        glColor3f(1,0,0);
-        glVertex3f(0,0,0);
-        glVertex3f(10,0,0);
-        
-        glColor3f(0,1,0);
-        glVertex3f(0,0,0);
-        glVertex3f(0,10,0);
-        
-        glColor3f(0,0,1);
-        glVertex3f(0,0,0);
-        glVertex3f(0,0,10);
-    glEnd();
+    koordinatni();
     
     /*Ako smo dosli do kraja RANDOM niza  vracamo se na pocetak*/
-    if(i == MAX){
+    if(i == MAX)
         i=0;
-    }
     
     /* Crtamo delove scene */
     drawMreza();
-    /*Pomeramo teme kocke u koordinatni pocetak */
-    glTranslatef(0.5,0.5,10.5);
+
  
     /*Crtamo umanjeno sledecu figuru i smestamo je u gornji desni ugao pored mreze*/
     glPushMatrix();
-        glTranslatef(4.3,2,0);
+        glTranslatef(4.8,2,10.5);
         glScalef(0.5,0.5,0.5);
         figure(r[i+1]);
     glPopMatrix();
+    
     glPushMatrix();
-        /* Primenjujemo translaciju ne klik strelice*/
-        glTranslatef(a,b,q);
+        /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice*/
+        glTranslatef(a+0.5,b+0.5,q+q1);
     
         /* Primenjujemo rotaciju*/
         glRotatef(r_stanje.x, 1, 0, 0);
         glRotatef(r_stanje.y, 0, 1, 0);
         glRotatef(r_stanje.z, 0, 0, 1);
-
+        
+        /*Crtamo koordinatni sistem figure radi orijentacije
+        * prilikom izrade projekta*/
+        koordinatni();
+    
         /*Crtamo figuru*/
         figure(r[i]);
     glPopMatrix();
     
     /*Zaustavljanje*/
-    
-    if(q <= -10){
+    int pom=drop;
+    if(q <= 0.5){
         animation_ongoing = 0;
         time_passed = 0;
         drop++;
+        if(drop > pom){
+            pom = drop;
+            azurirajMatricaStanja();
+        }
      }
+     
      
     /* Nova slika se salje na ekran. */
     glutSwapBuffers();
@@ -304,6 +309,7 @@ static void on_keyboard(unsigned char key, int x, int y)
   switch (key) {
     case 27:
         /* Zavrsava se program. */
+        free_mat(mat, Z_MAX, XY_MAX);
         exit(0);
         break;
     case ' ':
@@ -321,25 +327,31 @@ static void on_keyboard(unsigned char key, int x, int y)
     case 'a':
     case 'A':
         /* Rotacija po x osi */
-        r_stanje.t_osa = 0;
-        r_stanje.rotacije = true;
-        rotiraj();
+        if(animation_ongoing){
+            r_stanje.t_osa = 0;
+            r_stanje.rotacije = true;
+            rotiraj();
+        }
         break;
 
     case 's':
     case 'S':
         /* Rotacija po y osi */ 
-        r_stanje.t_osa = 1;
-        r_stanje.rotacije = true;
-        rotiraj();
+        if(animation_ongoing){
+            r_stanje.t_osa = 1;
+            r_stanje.rotacije = true;
+            rotiraj();
+        }
         break;
     
     case 'd':
     case 'D':
         /* Rotacija po z osi */
-        r_stanje.t_osa = 2;
-        r_stanje.rotacije= true;
-        rotiraj();
+        if(animation_ongoing){
+            r_stanje.t_osa = 2;
+            r_stanje.rotacije= true;
+            rotiraj();
+        }
         break;
   }
 }
@@ -347,7 +359,7 @@ static void on_keyboard(unsigned char key, int x, int y)
 static void on_timer(int id)
 {
     /*Povecavamo proteklo vreme.*/
-    time_passed +=0.01;
+    time_passed +=0.005;
     
     
     glutPostRedisplay();
@@ -362,19 +374,19 @@ static void on_arrow(int key, int x, int y)
 {
     switch (key) {
         case GLUT_KEY_UP:
-            if(lim.y_max+b < V_TO)
+            if(lim.y_max+b < V_TO && animation_ongoing)
                 b++;
             break;
         case GLUT_KEY_DOWN:
-            if(lim.y_min+b > V_FROM)
+            if(lim.y_min+b > V_FROM && animation_ongoing)
                 b--;
             break;
         case GLUT_KEY_RIGHT:
-            if(lim.x_max+a < U_TO)
+            if(lim.x_max+a < U_TO && animation_ongoing)
                 a++;
             break;
         case GLUT_KEY_LEFT:
-            if(lim.x_min+a > U_FROM)
+            if(lim.x_min+a > U_FROM && animation_ongoing)
                 a--;
             break;
   }
@@ -511,7 +523,7 @@ static void drawFigura2()
     lim.y_max=2;
     lim.z_min=0;
     lim.z_max=1;
-    
+
     glColor3f(0.9,0.9,0.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -632,7 +644,7 @@ static void drawFigura6()
     lim.z_min=0;
     lim.z_max=1;
     
-    glColor3f(1.0,0.5,0.1);
+    glColor3f(1.0,0.6,0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
     glPushMatrix();
@@ -658,7 +670,7 @@ void drawMatricaStanja(void)
 
 void azurirajMatricaStanja(void)
 {
-    
+    mat[(int)(q+q1)][b][a]=1;
 }
 
 int ***alloc_mat(int zlen, int ylen, int xlen)
