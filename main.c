@@ -22,7 +22,7 @@
 /*Definisemo status figure ako je pala false ako nije true*/
 /*bool fig_status=true;*/
 /*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica*/
-int a=0,b=0;
+float a=0.5,b=0.5;
 /*Ovda pratimo pomeranje po z osi*/
 float q=10.5;
 float q1=0.0;
@@ -70,7 +70,7 @@ void free_mat(int ***mat, int zlen, int ylen);
 
 /*Pamtimo spustene figure i crtamo ih*/
 void drawMatricaStanja(void);
-void azurirajMatricaStanja(void);
+void azurirajMatricaStanja(int p);
 
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
@@ -221,7 +221,7 @@ static void on_display(void)
     
     glPushMatrix();
         /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice*/
-        glTranslatef(a+0.5,b+0.5,q+q1);
+        glTranslatef(a,b,q+q1);
     
         /* Primenjujemo rotaciju*/
         glRotatef(r_stanje.x, 1, 0, 0);
@@ -231,7 +231,10 @@ static void on_display(void)
         /*Crtamo koordinatni sistem figure radi orijentacije
         * prilikom izrade projekta*/
         koordinatni();
-    
+        
+        /*Crtamo matricu stanja
+        drawMatricaStanja();*/
+        
         /*Crtamo figuru*/
         figure(r[i]);
     glPopMatrix();
@@ -244,7 +247,13 @@ static void on_display(void)
         drop++;
         if(drop > pom){
             pom = drop;
-            azurirajMatricaStanja();
+            azurirajMatricaStanja(r[i]);
+            a=0.5;
+            b=0.5;
+            q=10.5;
+            q1=0;
+            i++;
+            animation_ongoing=1;
         }
      }
      
@@ -253,11 +262,11 @@ static void on_display(void)
     glutSwapBuffers();
 }
 
-void figure(int r)
+void figure(int p)
 {
     /*Nasumicno biramo figuru koju cemo iscrtati*/
         
-    switch(r){
+    switch(p){
         case 0:
             drawFigura1();
             break;
@@ -665,12 +674,56 @@ static void drawFigura6()
 
 void drawMatricaStanja(void)
 {
-    
+ int u,v,c;
+    /*Crtamomo matricu stanja*/
+	for(c = 0; c < Z_MAX; c++){
+        for(v = 0; v < XY_MAX; v++){
+            for(u = 0; u < XY_MAX; u++){
+                if(mat[c][v][u]==1){
+                    glColor3f(0.2,0.4,0.2);
+                    glTranslatef(u-4,v-4,c-4);
+                    glutSolidCube(1);
+                }
+            }
+        }
+    }   
 }
 
-void azurirajMatricaStanja(void)
+void azurirajMatricaStanja(int p)
 {
-    mat[(int)(q+q1)][b][a]=1;
+int c,b1,a1;
+c=q+q1;
+b1=4+b;
+a1=4+a;
+mat[c][b1][a1]=1;
+
+switch(p){
+        case 1:
+            mat[c][b1][a1+1]=1;
+            mat[c][b1][a1-1]=1;
+            mat[c][b1+1][a1-1]=1;
+            break;
+        case 2:
+            mat[c][b1+1][a1]=1;
+            mat[c][b1][a1+1]=1;
+            mat[c][b1-1][a1]=1;
+            break;
+        case 3:
+            mat[c][b1][a1-1]=1;
+            mat[c][b1-1][a1]=1;
+            mat[c][b1-1][a1+1]=1;
+            break;
+        case 4:
+            mat[c][b1][a1+1]=1;
+            mat[c][b1-1][a1]=1;
+            mat[c][b1-1][a1+1]=1;
+            break;
+        case 5:
+            mat[c][b1+2][a1]=1;
+            mat[c][b1+1][a1]=1;
+            mat[c][b1-1][a1]=1;
+            break;
+    }
 }
 
 int ***alloc_mat(int zlen, int ylen, int xlen)
