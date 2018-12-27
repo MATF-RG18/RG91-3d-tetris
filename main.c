@@ -149,7 +149,7 @@ int main(int argc, char **argv)
     }
     
     /* Obavlja se OpenGL inicijalizacija. */
-    glClearColor(0, 0, 0, 0);
+    glClearColor(0.35, 0.35, 0.35, 0);
 	glEnable(GL_DEPTH_TEST);
 	
     /* Ulazi se u glavnu petlju. */
@@ -191,6 +191,30 @@ static void koordinatni(void)
 }
 static void on_display(void)
 {
+    /* Pozicija svetla (u pitanju je direkcionalno svetlo). */
+    GLfloat light_position[] = { -2, -2, 2, 0 };
+
+    /* Ambijentalna boja svetla. */
+    GLfloat light_ambient[] = { 0.0, 0.2, 0.3, 1 };
+
+    /* Difuzna boja svetla. */
+    GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
+
+    /* Spekularna boja svetla. */
+    GLfloat light_specular[] = { 0.9, 0.9, 0.9, 1 };
+
+    /* Koeficijenti ambijentalne refleksije materijala. */
+    GLfloat ambient_coeffs[] = { 0.2, 0.2, 0.1, 1 };
+
+    /* Koeficijenti difuzne refleksije materijala. */
+    GLfloat diffuse_coeffs[] = { 1, 1, 1, 1 };
+
+    /* Koeficijenti spekularne refleksije materijala. */
+    GLfloat specular_coeffs[] = { 0.8, 0.8, 0.8, 1 };
+
+    /* Koeficijent glatkosti materijala. */
+    GLfloat shininess = 30;
+    
     /* Postavlja se boja svih piksela na zadatu boju pozadine. */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -208,6 +232,20 @@ static void on_display(void)
     if(i == MAX)
         i=0;
     
+    /* Ukljucuje se osvjetljenje i podesavaju parametri svetla. */
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
+
+    /* Podesavaju se parametri materijala. */
+    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient_coeffs);
+    glMaterialfv(GL_FRONT,GL_DIFFUSE,diffuse_coeffs);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, specular_coeffs);
+    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
+    
     /* Crtamo delove scene */
     drawMreza();
 
@@ -220,7 +258,7 @@ static void on_display(void)
     glPopMatrix();
     
     glPushMatrix();
-        /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice*/
+        /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice, a oznek q pomaze da pratimo pad figure a q1 promenu posle rotacije */
         glTranslatef(a,b,q+q1);
     
         /* Primenjujemo rotaciju*/
@@ -264,25 +302,64 @@ static void on_display(void)
 
 void figure(int p)
 {
+    /* Difuzna boja svetla. */
+    GLfloat diffuse_coeffs[] = { 0.0, 0.0, 0.8, 1 };
+    
     /*Nasumicno biramo figuru koju cemo iscrtati*/
         
     switch(p){
         case 0:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.2;
+            diffuse_coeffs[1] = 0.1;
+            diffuse_coeffs[2] = 0.9;
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
+    
             drawFigura1();
             break;
         case 1:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.9;
+            diffuse_coeffs[1] = 0.9;
+            diffuse_coeffs[2] = 0.0;
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
+            
             drawFigura2();
             break;
         case 2:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.7;
+            diffuse_coeffs[1] = 0.1;
+            diffuse_coeffs[2] = 0.3;
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
+            
             drawFigura3();
             break;
         case 3:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.0;
+            diffuse_coeffs[1] = 0.8;
+            diffuse_coeffs[2] = 0.9;
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
+            
             drawFigura4();
             break;
         case 4:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.5;
+            diffuse_coeffs[1] = 0.9;
+            diffuse_coeffs[2] = 0.2;
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
+            
             drawFigura5();
             break;
         case 5:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.9;
+            diffuse_coeffs[1] = 0.6;
+            diffuse_coeffs[2] = 0.0;
+            glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
+            
             drawFigura6();
             break;
     }
@@ -383,19 +460,19 @@ static void on_arrow(int key, int x, int y)
 {
     switch (key) {
         case GLUT_KEY_UP:
-            if(lim.y_max+b < V_TO && animation_ongoing)
+            if(lim.y_max+b-0.5 < V_TO && animation_ongoing)
                 b++;
             break;
         case GLUT_KEY_DOWN:
-            if(lim.y_min+b > V_FROM && animation_ongoing)
+            if(lim.y_min+b-0.5 > V_FROM && animation_ongoing)
                 b--;
             break;
         case GLUT_KEY_RIGHT:
-            if(lim.x_max+a < U_TO && animation_ongoing)
+            if(lim.x_max+a-0.5 < U_TO && animation_ongoing)
                 a++;
             break;
         case GLUT_KEY_LEFT:
-            if(lim.x_min+a > U_FROM && animation_ongoing)
+            if(lim.x_min+a-0.5 > U_FROM && animation_ongoing)
                 a--;
             break;
   }
@@ -532,7 +609,7 @@ static void drawFigura2()
     lim.y_max=2;
     lim.z_min=0;
     lim.z_max=1;
-
+    
     glColor3f(0.9,0.9,0.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -675,7 +752,7 @@ static void drawFigura6()
 void drawMatricaStanja(void)
 {
  int u,v,c;
-    /*Crtamomo matricu stanja*/
+    /*Crtamo matricu stanja*/
 	for(c = 0; c < Z_MAX; c++){
         for(v = 0; v < XY_MAX; v++){
             for(u = 0; u < XY_MAX; u++){
