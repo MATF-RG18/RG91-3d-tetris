@@ -5,27 +5,47 @@
 #include <stdbool.h>
 #include <errno.h>
 
+
 #define TIMER_INTERVAL 20
 #define TIMER_ID 1
-
 /* Definisemo granice parametara povrsi */
-#define U_FROM (-4)
-#define V_FROM (-4)
-#define U_TO (4)
-#define V_TO (4)
-#define C_FROM (0)
-#define C_TO (10)
+#define X_FROM (-4)
+#define Y_FROM (-4)
+#define X_TO (4)
+#define Y_TO (4)
+#define Z_FROM (0)
+#define Z_TO (10)
+/*Definisemo maksimalnu duinu niza random brojeva*/
 #define MAX 30
+/*Definisemo velicinu matrice*/
 #define Z_MAX 11
 #define XY_MAX 8
+/*Definisemo oznaku za osu po kojoj trenutno vrsimo rotaciju*/
+#define X_OSA 0
+#define Y_OSA 1
+#define Z_OSA 2
+/*Definisemo ozneke za figure*/
+#define FIGURA_DOT 0
+#define FIGURA_EL 1
+#define FIGURA_TRIANGLE 2
+#define FIGURA_ZE 3
+#define FIGURA_SQUERE 4
+#define FIGURA_LINE 5
 
-/*Definisemo status figure ako je pala false ako nije true*/
-/*bool fig_status=true;*/
-/*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica*/
-float a=0.5,b=0.5;
-/*Ovda pratimo pomeranje po z osi*/
-float q=10.5;
-float q1=0.0;
+/*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica,
+ inicijalno ih postavljamo na 0.5 jer se kocka crta u koordinatnom pocetku a nama treba da bude u polju */
+float x_pomeraj=0.5,y_pomeraj=0.5;
+/*Ovda pratimo pomeranje po z osi inicijalno postavljamo da se pocetna figura nalazi na z=11*/
+float z_pomeraj=10.5;
+
+/*Potrebna nam je pomocna promenljiva koja ce da kontrolise da za svaku novu figuru samo
+ *prvi put postavi granice i posle ih azurira na adekvatan nacin*/
+int granice=0;
+
+/*Posto i sledecu figuru crtamo pomocu iste funkcije za sledecu figuru iskljucicemo podesavanje granica*/
+bool sledeca=false;
+
+
 /*Promenljive koje pamte koordinate misa*/
 int mouse_x = 0;
 int mouse_y = 0;
@@ -37,8 +57,8 @@ static int window_width, window_height;
 static float matrix[16];
 
 /*Inicijalizacija niza za pakovanje random brojeva*/
-int r[MAX];
-int i=0;
+int randNiz[MAX];
+int rand_brojac=0;
 
 /*Promenljiva kojom detektujemo da je figura spustna i iscrtamo je */
 int drop = 0;
@@ -51,17 +71,21 @@ static void on_timer(int id);
 static void on_arrow(int key, int x, int y);
 static void on_mouse(int  button, int state, int x, int y);
 static void on_motion(int x, int y);
+
+static void init_lights();
+static void set_material(int id);
 void rotiraj(void);
+void azurirajGranice(int i);
 
 /* Deklaracija funkcija za crtanje */
 void figure(int r);
 static void drawMreza();
-static void drawFigura1();
-static void drawFigura2();
-static void drawFigura3();
-static void drawFigura4();
-static void drawFigura5();
-static void drawFigura6();
+static void drawFiguraDot();
+static void drawFiguraEl();
+static void drawFiguraTriangle();
+static void drawFiguraZe();
+static void drawFiguraSquere();
+static void drawFiguraLine();
 
 /*Funkcije za alokaciju i dealokaiju matrice stanja*/
 int ***mat;
@@ -76,7 +100,15 @@ void azurirajMatricaStanja(int p);
 int animation_ongoing;
 
 /*Vreme proteklo od pocetka animacije*/
-float time_passed;
+int time_passed;
+
+/*Pomocne promenljive za promenu koordinata pri rotaciji u funkciji rotiraj()
+ pom1 je za rotaciju oko x ose, pom2 oko y ose i pom3 oko z ose
+ i mogu imati vrednose 1 ili -1*/
+int pom[] = {0,1,2};
+
+/*Brojimo rotacije u funkciji rotiraj(), vrednosti: 0,1,2,3*/
+int brojac=0;
 
 /*Definisemo strukturu u kojoj cemo cuvati stanja rotacije */
 struct rot_stanje {
@@ -111,7 +143,7 @@ int main(int argc, char **argv)
     glutMouseFunc(on_mouse);
     glutMotionFunc(on_motion);
     
-    /*Inicijalizijem globalne promenljive za pamcenje koordinata misa*/
+    /*Inicijalizijem promenljive za pamcenje koordinata misa*/
     mouse_x = 0;
     mouse_y = 0;
     
@@ -134,23 +166,16 @@ int main(int argc, char **argv)
     
     /*Inicijalizujemo niz random brojeva koji cemo koristiti za crtanja figure*/
     srand(time(NULL));
-    for(i=0; i<MAX; i++){
-        r[i]=rand()/(RAND_MAX/6);
-    }
-    
-	int u,v,c;
-    /*Inicijalizujemo matricu stanja*/
-	for(c = 0; c < Z_MAX; c++){
-        for(v = 0; v < XY_MAX; v++){
-            for(u = 0; u < XY_MAX; u++){
-                mat[c][v][u]=0;
-            }
-        }
+    for(rand_brojac=0; rand_brojac<MAX; rand_brojac++){
+        randNiz[rand_brojac]=rand()/(RAND_MAX/6);
     }
     
     /* Obavlja se OpenGL inicijalizacija. */
-    glClearColor(0.35, 0.35, 0.35, 0);
+    glClearColor(0.1, 0.1, 0.1, 0);
 	glEnable(GL_DEPTH_TEST);
+    
+    /*Ukljucujemo normalizaciju*/
+    glEnable(GL_NORMALIZE);
 	
     /* Ulazi se u glavnu petlju. */
     glutMainLoop();
@@ -191,30 +216,6 @@ static void koordinatni(void)
 }
 static void on_display(void)
 {
-    /* Pozicija svetla (u pitanju je direkcionalno svetlo). */
-    GLfloat light_position[] = { -2, -2, 2, 0 };
-
-    /* Ambijentalna boja svetla. */
-    GLfloat light_ambient[] = { 0.0, 0.2, 0.3, 1 };
-
-    /* Difuzna boja svetla. */
-    GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
-
-    /* Spekularna boja svetla. */
-    GLfloat light_specular[] = { 0.9, 0.9, 0.9, 1 };
-
-    /* Koeficijenti ambijentalne refleksije materijala. */
-    GLfloat ambient_coeffs[] = { 0.2, 0.2, 0.1, 1 };
-
-    /* Koeficijenti difuzne refleksije materijala. */
-    GLfloat diffuse_coeffs[] = { 1, 1, 1, 1 };
-
-    /* Koeficijenti spekularne refleksije materijala. */
-    GLfloat specular_coeffs[] = { 0.8, 0.8, 0.8, 1 };
-
-    /* Koeficijent glatkosti materijala. */
-    GLfloat shininess = 30;
-    
     /* Postavlja se boja svih piksela na zadatu boju pozadine. */
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -223,170 +224,125 @@ static void on_display(void)
     glLoadIdentity();
     gluLookAt(0, 0, 18, 0, 0, 0, 0, 1, 0);
     
+    /*Obavljamo normalizaciju vektora normale*/
+    glNormal3f(0,0,1);
+    
     /* Primenjuje se matrica rotacije. */
     glMultMatrixf(matrix);
     
-    koordinatni();
+    init_lights();
+    set_material(6);
     
     /*Ako smo dosli do kraja RANDOM niza  vracamo se na pocetak*/
-    if(i == MAX)
-        i=0;
-    
-    /* Ukljucuje se osvjetljenje i podesavaju parametri svetla. */
-    glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
-    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
+    if(rand_brojac == MAX)
+        rand_brojac=0;
 
-    /* Podesavaju se parametri materijala. */
-    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient_coeffs);
-    glMaterialfv(GL_FRONT,GL_DIFFUSE,diffuse_coeffs);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, specular_coeffs);
-    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
-    
     /* Crtamo delove scene */
     drawMreza();
-
+    
+    /*Crtamo matricu stanja
+    drawMatricaStanja();*/
  
     /*Crtamo umanjeno sledecu figuru i smestamo je u gornji desni ugao pored mreze*/
     glPushMatrix();
+        /*Podesavamo materijale sledece figure*/
+        set_material(randNiz[rand_brojac+1]);
         glTranslatef(4.8,2,10.5);
         glScalef(0.5,0.5,0.5);
-        figure(r[i+1]);
-    glPopMatrix();
+        sledeca=true;
+        figure(randNiz[rand_brojac+1]);
+        sledeca=false;
+    glPopMatrix(); 
     
     glPushMatrix();
-        /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice, a oznek q pomaze da pratimo pad figure a q1 promenu posle rotacije */
-        glTranslatef(a,b,q+q1);
+        /*Podesavamo materijale za svaku figuru zasebno*/
+        set_material(randNiz[rand_brojac]);
+        /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice, 
+         * oznaka z_pomeraj pomaze da pratimo pad figure */
+        glTranslatef(x_pomeraj,y_pomeraj,z_pomeraj + lim.z_min);
     
         /* Primenjujemo rotaciju*/
         glRotatef(r_stanje.x, 1, 0, 0);
         glRotatef(r_stanje.y, 0, 1, 0);
         glRotatef(r_stanje.z, 0, 0, 1);
         
-        /*Crtamo koordinatni sistem figure radi orijentacije
-        * prilikom izrade projekta*/
-        koordinatni();
-        
-        /*Crtamo matricu stanja
-        drawMatricaStanja();*/
-        
         /*Crtamo figuru*/
-        figure(r[i]);
+        figure(randNiz[rand_brojac]);
     glPopMatrix();
     
     /*Zaustavljanje*/
     int pom=drop;
-    if(q <= 0.5){
+    if(z_pomeraj <= -0.5){
         animation_ongoing = 0;
         time_passed = 0;
         drop++;
         if(drop > pom){
             pom = drop;
-            azurirajMatricaStanja(r[i]);
-            a=0.5;
-            b=0.5;
-            q=10.5;
-            q1=0;
-            i++;
+            azurirajMatricaStanja(randNiz[rand_brojac]);
+            x_pomeraj=0.5;
+            y_pomeraj=0.5;
+            z_pomeraj=10.5;
+            rand_brojac++;
+            granice=0;
             animation_ongoing=1;
         }
      }
-     
      
     /* Nova slika se salje na ekran. */
     glutSwapBuffers();
 }
 
-void figure(int p)
-{
-    /* Difuzna boja svetla. */
-    GLfloat diffuse_coeffs[] = { 0.0, 0.0, 0.8, 1 };
-    
+void figure(int oznaka_figure)
+{    
     /*Nasumicno biramo figuru koju cemo iscrtati*/
-        
-    switch(p){
-        case 0:
-            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
-            diffuse_coeffs[0] = 0.2;
-            diffuse_coeffs[1] = 0.1;
-            diffuse_coeffs[2] = 0.9;
-            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
-    
-            drawFigura1();
+    switch(oznaka_figure){
+        case FIGURA_DOT:
+            drawFiguraDot();
             break;
-        case 1:
-            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
-            diffuse_coeffs[0] = 0.9;
-            diffuse_coeffs[1] = 0.9;
-            diffuse_coeffs[2] = 0.0;
-            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
-            
-            drawFigura2();
+        case FIGURA_EL:
+            drawFiguraEl();
             break;
-        case 2:
-            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
-            diffuse_coeffs[0] = 0.7;
-            diffuse_coeffs[1] = 0.1;
-            diffuse_coeffs[2] = 0.3;
-            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuse_coeffs);
-            
-            drawFigura3();
+        case FIGURA_TRIANGLE:
+            drawFiguraTriangle();
             break;
-        case 3:
-            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
-            diffuse_coeffs[0] = 0.0;
-            diffuse_coeffs[1] = 0.8;
-            diffuse_coeffs[2] = 0.9;
-            glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
-            
-            drawFigura4();
+        case FIGURA_ZE:
+            drawFiguraZe();
             break;
-        case 4:
-            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
-            diffuse_coeffs[0] = 0.5;
-            diffuse_coeffs[1] = 0.9;
-            diffuse_coeffs[2] = 0.2;
-            glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
-            
-            drawFigura5();
+        case FIGURA_SQUERE:
+            drawFiguraSquere();
             break;
-        case 5:
-            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
-            diffuse_coeffs[0] = 0.9;
-            diffuse_coeffs[1] = 0.6;
-            diffuse_coeffs[2] = 0.0;
-            glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
-            
-            drawFigura6();
+        case FIGURA_LINE:            
+            drawFiguraLine();
             break;
     }
 }
 
 void rotiraj(void)
 {
-    /*Vrsimo animaciju rotiranja*/
-    float increment = 90.0;
+    /*Vrsimo animaciju rotiranja, a ugao za koji rotiramo je 90*/
+    float increment = 90.0;     
+    
     switch (r_stanje.t_osa)
     {
-    case 0:
+    case X_OSA:
         r_stanje.x += increment;
         r_stanje.rotacije = false;
+        azurirajGranice(0);
         break;
-    case 1:
+    case Y_OSA:
         r_stanje.y += increment;
         r_stanje.rotacije = false;
+        azurirajGranice(1);
         break;
-    case 2:
+    case Z_OSA:
         r_stanje.z += increment;
         r_stanje.rotacije = false;
+        azurirajGranice(2);
         break;
     default:
         break;
     }
-
+    /*Forsiramo ponovno iscrtavanje na ekranu*/
     glutPostRedisplay();
 }
 
@@ -445,13 +401,14 @@ static void on_keyboard(unsigned char key, int x, int y)
 static void on_timer(int id)
 {
     /*Povecavamo proteklo vreme.*/
-    time_passed +=0.005;
+    time_passed +=1;
     
     
     glutPostRedisplay();
     
     if(animation_ongoing){
-        q = q-0.04;
+        if(time_passed % 20 == 0)
+            z_pomeraj = z_pomeraj-1;
         glutTimerFunc(TIMER_INTERVAL,on_timer,TIMER_ID);
     }
 }
@@ -460,22 +417,31 @@ static void on_arrow(int key, int x, int y)
 {
     switch (key) {
         case GLUT_KEY_UP:
-            if(lim.y_max+b-0.5 < V_TO && animation_ongoing)
-                b++;
+            /*Na komandu strelice nagore povecavamo y_pomeraj i time pomeramo figuru nagore 
+             *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
+            if(lim.y_max + y_pomeraj - 0.5 < Y_TO && animation_ongoing)
+                y_pomeraj++;
             break;
         case GLUT_KEY_DOWN:
-            if(lim.y_min+b-0.5 > V_FROM && animation_ongoing)
-                b--;
+            /*Na komandu strelice nadole umanjujemo y_pomeraj i time pomeramo figuru nadole 
+             *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
+            if(lim.y_min + y_pomeraj -0.5 > Y_FROM && animation_ongoing)
+                y_pomeraj--;
             break;
         case GLUT_KEY_RIGHT:
-            if(lim.x_max+a-0.5 < U_TO && animation_ongoing)
-                a++;
+            /*Na komandu strelice nadesno povecavamo x_pomeraj i time pomeramo figuru nadesno 
+             *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
+            if(lim.x_max + x_pomeraj - 0.5 < X_TO && animation_ongoing)
+                x_pomeraj++;
             break;
         case GLUT_KEY_LEFT:
-            if(lim.x_min+a-0.5 > U_FROM && animation_ongoing)
-                a--;
+            /*Na komandu strelice nalevo umanjujemo x_pomeraj i time pomeramo figuru nalevo 
+             *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
+            if(lim.x_min + x_pomeraj - 0.5 > X_FROM && animation_ongoing)
+                x_pomeraj--;
             break;
   }
+  /*Forsiramo ponovno iscrtavanje scene*/
   glutPostRedisplay();
 }
 
@@ -522,15 +488,15 @@ static void drawMreza()
     int u,v,c;
     /* ukljucujemo iscrtavanje okvira kvadrata */
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    c=C_FROM;
-    for(v=V_FROM; v<V_TO; v++){
+    c=Z_FROM;
+    for(v=Y_FROM; v<Y_TO; v++){
 	/*crtamo mrezu strip po strip*/
     	glBegin(GL_QUAD_STRIP);
        	 	glColor3f(0.9, 0.9, 0.9);
-		u=U_FROM;
+		u=X_FROM;
 		glVertex3f(u , -v, c);
         glVertex3f(u , -(v+1), c);
-		for(u=U_FROM+1; u<=U_TO; u++){
+		for(u=X_FROM+1; u<=X_TO; u++){
         		glVertex3f(u , - v , c);
         		glVertex3f(u , -(v+1) , c);
         }
@@ -538,42 +504,42 @@ static void drawMreza()
     	glEnd();
     }
     /*crtamo bocne strane mreze*/
-    v=V_FROM;
-    for(u=U_FROM; u < U_TO; u++){
+    v=Y_FROM;
+    for(u=X_FROM; u < X_TO; u++){
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.9, 0.2, 0.7);
-        for(c=C_FROM; c <= C_TO; c++){
+        for(c=Z_FROM; c <= Z_TO; c++){
             glVertex3f(u , -v, c);
             glVertex3f((u+1) , -v, c);
         }
     glEnd();
     }
     /*Naspramna strana u odnosu na prethodno nacrtanu*/
-    for(u=U_FROM; u < U_TO; u++){
+    for(u=X_FROM; u < X_TO; u++){
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.2, 0.5, 0.7);
-        for(c=C_FROM; c <= C_TO; c++){
+        for(c=Z_FROM; c <= Z_TO; c++){
             glVertex3f(u , v, c);
             glVertex3f((u+1) , v, c);
         }
     glEnd();
     }
     /*treca strana*/
-    u=U_FROM;
-    for(v=V_FROM; v < V_TO; v++){
+    u=X_FROM;
+    for(v=Y_FROM; v < Y_TO; v++){
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.8, 0.8, 0.1);
-        for(c=C_FROM; c <= C_TO; c++){
+        for(c=Z_FROM; c <= Z_TO; c++){
             glVertex3f(-u , -v , c);
             glVertex3f(-u , -(v+1) , c);
         }
     glEnd();
     }
     /*Naspremna prethodnoj i poslednja strana u nasoj mrezi*/
-    for(v=V_FROM; v < V_TO; v++){
+    for(v=Y_FROM; v < Y_TO; v++){
       glBegin(GL_QUAD_STRIP);
         glColor3f(0.2, 0.6, 0.3);
-        for(c=C_FROM; c <= C_TO; c++){
+        for(c=Z_FROM; c <= Z_TO; c++){
             glVertex3f(u , -v , c);
             glVertex3f(u , -(v+1) , c);
         }
@@ -582,8 +548,10 @@ static void drawMreza()
 
 }
 
-static void drawFigura1()
+static void drawFiguraDot()
 {
+/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+if(granice == 0 && !sledeca){
     /*Inicijalizujemo min i max za svaku osu figure 1*/
     lim.x_min=0;
     lim.x_max=1;
@@ -591,7 +559,9 @@ static void drawFigura1()
     lim.y_max=1;
     lim.z_min=0;
     lim.z_max=1;
-    
+    granice++;
+}
+
     glColor3f(0.2,.1,.9);
     glPushMatrix();
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -600,8 +570,10 @@ static void drawFigura1()
 
 }
 
-static void drawFigura2()
+static void drawFiguraEl()
 {
+/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+if(granice == 0 && !sledeca){
     /*Inicijalizujemo min i max za svaku osu figure 2*/
     lim.x_min=-1;
     lim.x_max=2;
@@ -609,7 +581,8 @@ static void drawFigura2()
     lim.y_max=2;
     lim.z_min=0;
     lim.z_max=1;
-    
+    granice++;
+}
     glColor3f(0.9,0.9,0.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -621,7 +594,6 @@ static void drawFigura2()
             glTranslatef(1,0,0);
             glutSolidCube(1);
         glPopMatrix();
-    
         glPushMatrix();
             glTranslatef(-1,0,0);
             glutSolidCube(1);
@@ -633,8 +605,10 @@ static void drawFigura2()
     glPopMatrix();
 }
 
-static void drawFigura3()
+static void drawFiguraTriangle()
 {
+/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+if(granice == 0 && !sledeca){
     /*Inicijalizujemo min i max za svaku osu figure 3*/
     lim.x_min=0;
     lim.x_max=2;
@@ -642,7 +616,8 @@ static void drawFigura3()
     lim.y_max=2;
     lim.z_min=0;
     lim.z_max=1;
-    
+    granice++;
+}
     glColor3f(0.7,.1,.3);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -662,16 +637,19 @@ static void drawFigura3()
     glPopMatrix();
 }
 
-static void drawFigura4()
+static void drawFiguraZe()
 {
+/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+if(granice == 0 && !sledeca){
     /*Inicijalizujemo min i max za svaku osu figure 4*/
     lim.x_min=-1;
-    lim.x_max=2;
+    lim.x_max=1;
     lim.y_min=-1;
     lim.y_max=1;
     lim.z_min=0;
     lim.z_max=1;
-    
+    granice++;
+}
     glColor3f(0.0,.8,.9);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
    
@@ -691,8 +669,10 @@ static void drawFigura4()
     glPopMatrix();
 }
 
-static void drawFigura5()
+static void drawFiguraSquere()
 {
+/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+if(granice == 0 && !sledeca){
     /*Inicijalizujemo min i max za svaku osu figure 5*/
     lim.x_min=0;
     lim.x_max=2;
@@ -700,7 +680,9 @@ static void drawFigura5()
     lim.y_max=1;
     lim.z_min=0;
     lim.z_max=1;
-    
+    granice++;
+}    
+
     glColor3f(0.5,.9,.2);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -720,8 +702,10 @@ static void drawFigura5()
     glPopMatrix();
 }
 
-static void drawFigura6()
-{
+static void drawFiguraLine()
+{ 
+/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+if(granice == 0 && !sledeca){   
     /*Inicijalizujemo min i max za svaku osu figure 6*/
     lim.x_min=0;
     lim.x_max=1;
@@ -729,7 +713,8 @@ static void drawFigura6()
     lim.y_max=3;
     lim.z_min=0;
     lim.z_max=1;
-    
+    granice++;
+}
     glColor3f(1.0,0.6,0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -749,6 +734,42 @@ static void drawFigura6()
     glPopMatrix();
 }
 
+void azurirajGranice(int i)
+{
+    int pom_min, pom_max;
+    /*Azuriramo granicne koordinate posle zadate rotacije*/
+        if(brojac == 0 || brojac == 2){
+            pom_min = lim.y_min;
+            pom_max = lim.y_max;
+            lim.y_min = lim.z_min;
+            lim.y_max = lim.z_max;
+            lim.z_min = pom_min;
+            lim.z_max = pom_max;
+            if(brojac == 2){
+                lim.z_min+=1;
+                lim.z_max+=1;
+            }
+
+            brojac++;
+            pom[i] *= -1;
+        }else if(brojac == 1 || brojac == 3){
+            pom_min = lim.y_min;
+            pom_max = lim.y_max;
+            lim.y_min = pom[i] * lim.z_max;
+            lim.y_max = pom[i] * lim.z_min;
+            lim.z_min = pom_min;
+            lim.z_max = pom_max;
+            if(brojac == 3){
+                lim.y_min+=1;
+                lim.y_max+=1;
+                brojac=0;
+            }
+            
+            brojac++;
+            pom[i] *= -1;
+        }
+}
+
 void drawMatricaStanja(void)
 {
  int u,v,c;
@@ -766,36 +787,40 @@ void drawMatricaStanja(void)
     }   
 }
 
-void azurirajMatricaStanja(int p)
+void azurirajMatricaStanja(int oznaka_figure)
 {
-int c,b1,a1;
-c=q+q1;
-b1=4+b;
-a1=4+a;
+int a1,b1,c;
+c=z_pomeraj;
+/*Promenljive x_pomeraj i y_pomeraj uvecavamo za 4 zato sto u nasoj mrezi X i Y
+ *imaju vrednosti od -4 do 4 a u matrici se pamte i rasporedjuju od 0 do 8*/
+b1=4+y_pomeraj;
+a1=4+x_pomeraj;
+
+/*crtamo glavnu kocku, a po potrebi za ostale figure nadogradjujemo */
 mat[c][b1][a1]=1;
 
-switch(p){
-        case 1:
+switch(oznaka_figure){
+        case FIGURA_EL:
             mat[c][b1][a1+1]=1;
             mat[c][b1][a1-1]=1;
             mat[c][b1+1][a1-1]=1;
             break;
-        case 2:
+        case FIGURA_TRIANGLE:
             mat[c][b1+1][a1]=1;
             mat[c][b1][a1+1]=1;
             mat[c][b1-1][a1]=1;
             break;
-        case 3:
+        case FIGURA_ZE:
             mat[c][b1][a1-1]=1;
             mat[c][b1-1][a1]=1;
             mat[c][b1-1][a1+1]=1;
             break;
-        case 4:
+        case FIGURA_SQUERE:
             mat[c][b1][a1+1]=1;
             mat[c][b1-1][a1]=1;
             mat[c][b1-1][a1+1]=1;
             break;
-        case 5:
+        case FIGURA_LINE:
             mat[c][b1+2][a1]=1;
             mat[c][b1+1][a1]=1;
             mat[c][b1-1][a1]=1;
@@ -805,7 +830,7 @@ switch(p){
 
 int ***alloc_mat(int zlen, int ylen, int xlen)
 {
-    
+    /*Alokacija memorije za cuvanje matrice stanja mreze*/
     int u, v;
 
     if ((mat = malloc(zlen * sizeof(*mat))) == NULL) {
@@ -818,6 +843,7 @@ int ***alloc_mat(int zlen, int ylen, int xlen)
 
     for (u=0; u < zlen; ++u)
         if ((mat[u] = malloc(ylen * sizeof(*mat[u]))) == NULL) {
+            /*Ako alokacija nije uspela oslobadjamo vec alocirano i saljemo poruku za gresku*/
             perror("malloc 2");
             free_mat(mat, zlen, ylen);
             return NULL;
@@ -830,6 +856,7 @@ int ***alloc_mat(int zlen, int ylen, int xlen)
     for (u=0; u < zlen; ++u)
         for (v=0; v < ylen; ++v)
             if ((mat[u][v] = malloc(xlen * sizeof (*mat[u][v]))) == NULL) {
+                /*Ako alokacija nije uspela oslobadjamo vec alocirano i saljemo poruku za gresku*/
                 perror("malloc 3");
                 free_mat(mat, zlen, ylen);
                 return NULL;
@@ -849,4 +876,114 @@ void free_mat(int ***mat, int zlen, int ylen)
         }
     }
     free(mat);
+}
+
+static void init_lights()
+{
+    /* Pozicija svetla (u pitanju je direkcionalno svetlo). */
+    GLfloat light_position[] = { 0, -1, 1, 0 };
+
+    /* Ambijentalna boja svetla. */
+    GLfloat light_ambient[] = { 0.5, 0.6, 0.3, 1 };
+
+    /* Difuzna boja svetla. */
+    GLfloat light_diffuse[] = { 0.8, 0.8, 0.9, 1 };
+
+    /* Spekularna boja svetla. */
+    GLfloat light_specular[] = { 0.9, 0.9, 0.9, 1 };
+    
+    
+    /* Ukljucuje se osvjetljenje i podesavaju parametri svetla. */
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
+
+}
+
+static void set_material(int id)
+{
+    /* Koeficijenti ambijentalne refleksije materijala. */
+    GLfloat ambient_coeffs[] = { 0.2, 0.4, 0.1, 1 };
+
+    /* Koeficijenti difuzne refleksije materijala. */
+    GLfloat diffuse_coeffs[] = { 1, 1, 1, 1 };
+
+    /* Koeficijenti spekularne refleksije materijala. */
+    GLfloat specular_coeffs[] = { 0.8, 0.8, 0.8, 1 };
+
+    /* Koeficijent glatkosti materijala. */
+    GLfloat shininess = 30;
+    
+    /* Odredjujemo koeficijente ambijentalne i difuzne refleksije materijala za svaku figure. */
+    switch (id) {
+        case FIGURA_DOT:
+            diffuse_coeffs[0] = 0.2;
+            diffuse_coeffs[1] = 0.1;
+            diffuse_coeffs[2] = 0.9;
+            /* Koeficijenti ambijentalne refleksije materijala za datu figuru. */
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.5;
+            break;
+        case FIGURA_EL:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.9;
+            diffuse_coeffs[1] = 0.9;
+            diffuse_coeffs[2] = 0.0;
+            /* Koeficijenti ambijentalne refleksije materijala za datu figuru. */
+            ambient_coeffs[0] = 0.3;
+            ambient_coeffs[1] = 0.3;
+            ambient_coeffs[2] = 0.0;
+            break;
+        case FIGURA_TRIANGLE:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.7;
+            diffuse_coeffs[1] = 0.1;
+            diffuse_coeffs[2] = 0.3;
+            /* Koeficijenti ambijentalne refleksije materijala za datu figuru. */
+            ambient_coeffs[0] = 0.3;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.1;
+            break;
+        case FIGURA_ZE:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.0;
+            diffuse_coeffs[1] = 0.8;
+            diffuse_coeffs[2] = 0.9;
+            /* Koeficijenti ambijentalne refleksije materijala za datu figuru. */
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.3;
+            ambient_coeffs[2] = 0.5;
+            break;
+        case FIGURA_SQUERE:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.5;
+            diffuse_coeffs[1] = 0.9;
+            diffuse_coeffs[2] = 0.2;
+            /* Koeficijenti ambijentalne refleksije materijala za datu figuru. */
+            ambient_coeffs[0] = 0.1;
+            ambient_coeffs[1] = 0.5;
+            ambient_coeffs[2] = 0.0;
+            break;
+        case FIGURA_LINE:
+            /* Koeficijenti difuzne refleksije materijala za datu figuru. */
+            diffuse_coeffs[0] = 0.7;
+            diffuse_coeffs[1] = 0.3;
+            diffuse_coeffs[2] = 0.0;
+            /* Koeficijenti ambijentalne refleksije materijala za datu figuru. */
+            ambient_coeffs[0] = 0.3;
+            ambient_coeffs[1] = 0.1;
+            ambient_coeffs[2] = 0.0;
+            break;
+    }
+
+    /* Podesavaju se parametri materijala. */
+    glMaterialfv(GL_FRONT, GL_AMBIENT, ambient_coeffs);
+    glMaterialfv(GL_FRONT, GL_DIFFUSE, diffuse_coeffs);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, specular_coeffs);
+    glMaterialf(GL_FRONT, GL_SHININESS, shininess);
+
 }
