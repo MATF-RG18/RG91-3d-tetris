@@ -12,3 +12,5 @@ S - rotacija tetris figure po y osi
 D - rotacija tetris figure po z osi
 
 I pomocu strelica na tastaturi pomeramo figure u sva cetiri pravca.
+
+Klikom i povlacenjem misa scenu pomeramo ulevo ili udesno.
