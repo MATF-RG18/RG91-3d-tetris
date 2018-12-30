@@ -104,6 +104,11 @@ void free_mat(int ***matStanja, int zlen, int ylen);
 /*Pamtimo spustene figure i crtamo ih*/
 void drawMatricaStanja(void);
 void azurirajMatricaStanja(int oznaka_figure);
+void pamtimoEl(int a, int b);
+void pamtimoTriangle(int a, int b);
+void pamtimoZe(int a, int b);
+void pamtimoSquere(int a, int b);
+void pamtimoLine(int a, int b);
 
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
@@ -112,7 +117,7 @@ int animation_ongoing;
 int time_passed;
 
 /*Brojimo rotacije u funkciji rotiraj(), vrednosti: 0,1,2,3*/
-int brojac=0;
+int rot_brojac=0;
 
 /*Definisemo strukturu u kojoj cemo cuvati stanja rotacije */
 struct rot_stanje {
@@ -207,24 +212,7 @@ static void on_reshape(int width, int height)
     glLoadIdentity();
     gluPerspective(60, (float) width / height, 1, 1500);
 }
-static void koordinatni(void)
-{
-    /*Crtamo koordinatni sistem radi orijentacije 
-     *prilikom izrade projekta*/
-    glBegin(GL_LINES);
-        glColor3f(1,0,0);
-        glVertex3f(-10,0,0);
-        glVertex3f(10,0,0);
-        
-        glColor3f(0,1,0);
-        glVertex3f(0,-10,0);
-        glVertex3f(0,10,0);
-        
-        glColor3f(0,0,1);
-        glVertex3f(0,0,-10);
-        glVertex3f(0,0,10);
-    glEnd();
-}
+
 static void on_display(void)
 {
     /* Postavlja se boja svih piksela na zadatu boju pozadine. */
@@ -264,8 +252,8 @@ void crtanjeDelovaScene(void)
     /*Crtamo mrezu 3D tetrisa*/
     drawMreza();
     
-    /*Crtamo matricu stanja iliti popunjenost osnove
-    drawMatricaStanja();*/
+    /*Crtamo matricu stanja iliti popunjenost osnove*/
+    drawMatricaStanja();
     
     glPushMatrix();
         /*Podesavamo materijale za svaku figuru zasebno*/
@@ -355,27 +343,27 @@ switch (r_stanje.t_osa){
     case X_OSA:
         r_stanje.x += increment;
         r_stanje.rotacije = false;
-        brojac++;
+        rot_brojac++;
         azurirajGranice(randNiz[rand_brojac]);
         break;
     case Y_OSA:
         r_stanje.y += increment;
         r_stanje.rotacije = false;
-        brojac++;
+        rot_brojac++;
         azurirajGranice(randNiz[rand_brojac]);
         break;
     case Z_OSA:
         r_stanje.z += increment;
         r_stanje.rotacije = false;
-        brojac++;
+        rot_brojac++;
         azurirajGranice(randNiz[rand_brojac]);
         break;
 }
 /*Vracamo brojac na nula jer smo vratili figuru u pocetni polozaj
 *i pravimo mogucnost da ako nismo nasli odgovarajuci polozaj
 * pokusamo rotaciju po nekoj drugoj osi*/
-if(brojac == 4)
-    brojac=0;
+if(rot_brojac == 4)
+    rot_brojac=0;
 
 /*Forsiramo ponovno iscrtavanje na ekranu*/
 glutPostRedisplay();
@@ -383,7 +371,6 @@ glutPostRedisplay();
 
 static void on_keyboard(unsigned char key, int x, int y)
 {
-printf("levo %d\ndesno %d\ngore %d\ndole %d\n*******\n",lim.levo,lim.desno,lim.gore, lim.dole);
   switch (key) {
     case 27:
         /* Zavrsava se program. */
@@ -405,7 +392,7 @@ printf("levo %d\ndesno %d\ngore %d\ndole %d\n*******\n",lim.levo,lim.desno,lim.g
     case 'a':
     case 'A':
         /* Rotacija po x osi */
-        if(animation_ongoing && (brojac==0 || r_stanje.t_osa ==0)){
+        if(animation_ongoing && (rot_brojac==0 || r_stanje.t_osa ==0)){
             r_stanje.t_osa = 0;
             r_stanje.rotacije = true;
             rotiraj();
@@ -415,7 +402,7 @@ printf("levo %d\ndesno %d\ngore %d\ndole %d\n*******\n",lim.levo,lim.desno,lim.g
     case 's':
     case 'S':
         /* Rotacija po y osi */ 
-        if(animation_ongoing && (brojac==0 || r_stanje.t_osa ==1)){
+        if(animation_ongoing && (rot_brojac==0 || r_stanje.t_osa ==1)){
             r_stanje.t_osa = 1;
             r_stanje.rotacije = true;
             rotiraj();
@@ -425,7 +412,7 @@ printf("levo %d\ndesno %d\ngore %d\ndole %d\n*******\n",lim.levo,lim.desno,lim.g
     case 'd':
     case 'D':
         /* Rotacija po z osi */
-        if(animation_ongoing && (brojac==0 || r_stanje.t_osa ==2)){
+        if(animation_ongoing && (rot_brojac==0 || r_stanje.t_osa ==2)){
             r_stanje.t_osa = 2;
             r_stanje.rotacije= true;
             rotiraj();
@@ -812,16 +799,16 @@ void azurirajLine(void)
 /*Obradjujemo promenu granice ove figure posle svake rotacije*/
 switch(r_stanje.t_osa){
     case X_OSA:
-        if(brojac == 1){
+        if(rot_brojac == 1){
             lim.gore +=2;
             lim.dole +=1;
-        }else if(brojac == 2){
+        }else if(rot_brojac == 2){
             lim.gore -=1;
             lim.dole -=2;
-        }else if(brojac == 3){
+        }else if(rot_brojac == 3){
             lim.gore +=1;
             lim.dole +=2;
-        }else if(brojac == 4){
+        }else if(rot_brojac == 4){
             lim.levo=4;
             lim.desno=3;
             lim.gore=1;
@@ -832,22 +819,22 @@ switch(r_stanje.t_osa){
         /*Rotacija po y osi nema efekat na ovu figuru*/
         break;
     case Z_OSA:
-        if(brojac == 1){
+        if(rot_brojac == 1){
             lim.levo -=2;
             lim.desno -=1;
             lim.gore +=2;
             lim.dole +=1;
-        }else if(brojac == 2){
+        }else if(rot_brojac == 2){
             lim.levo +=2;
             lim.desno +=1;
             lim.gore -=1;
             lim.dole -=2;
-        }else if(brojac == 3){
+        }else if(rot_brojac == 3){
             lim.levo -=1;
             lim.desno -=2;
             lim.gore +=1;
             lim.dole +=2;
-        }else if(brojac == 4){
+        }else if(rot_brojac == 4){
             lim.levo=4;
             lim.desno=3;
             lim.gore=1;
@@ -862,13 +849,13 @@ void azurirajSquere(void)
 /*Obradjujemo promenu granice ove figure posle svake rotacije*/
 switch(r_stanje.t_osa){
     case X_OSA:
-        if(brojac == 1){
+        if(rot_brojac == 1){
             lim.dole +=1;
-        }else if(brojac == 2){
+        }else if(rot_brojac == 2){
             lim.gore -=1;
-        }else if(brojac == 3){
+        }else if(rot_brojac == 3){
             lim.gore +=1;
-        }else if(brojac == 4){
+        }else if(rot_brojac == 4){
             lim.levo=4;
             lim.desno=2;
             lim.gore=3;
@@ -876,13 +863,13 @@ switch(r_stanje.t_osa){
         }
         break;
     case Y_OSA:
-        if(brojac == 1){
+        if(rot_brojac == 1){
             lim.desno +=1;
-        }else if(brojac == 2){
+        }else if(rot_brojac == 2){
             lim.levo -=1;
-        }else if(brojac == 3){
+        }else if(rot_brojac == 3){
             lim.levo +=1;
-        }else if(brojac == 4){
+        }else if(rot_brojac == 4){
             lim.levo=4;
             lim.desno=2;
             lim.gore=3;
@@ -890,16 +877,16 @@ switch(r_stanje.t_osa){
         }
         break;
     case Z_OSA:
-        if(brojac == 1){
+        if(rot_brojac == 1){
             lim.gore -=1;
             lim.dole +=1;
-        }else if(brojac == 2){
+        }else if(rot_brojac == 2){
             lim.desno +=1;
             lim.levo -=1;
-        }else if(brojac == 3){
+        }else if(rot_brojac == 3){
             lim.gore +=1;
             lim.dole -=1;
-        }else if(brojac == 4){
+        }else if(rot_brojac == 4){
             lim.levo=4;
             lim.desno=2;
             lim.gore=3;
@@ -914,13 +901,13 @@ void azurirajZe(void)
 /*Obradjujemo promenu granice ove figure posle svake rotacije*/
 switch(r_stanje.t_osa){
         case X_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.dole +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.gore -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.gore +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=3;
                 lim.desno=2;
                 lim.gore=3;
@@ -928,16 +915,16 @@ switch(r_stanje.t_osa){
             }
             break;
         case Y_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.levo +=1;
                 lim.desno +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.levo -=1;
                 lim.desno -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.levo +=1;
                 lim.desno +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=3;
                 lim.desno=2;
                 lim.gore=3;
@@ -945,16 +932,16 @@ switch(r_stanje.t_osa){
             }
             break;
         case Z_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.gore -=1;
                 lim.levo +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.dole +=1;
                 lim.levo -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.desno +=1;
                 lim.dole -=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=3;
                 lim.desno=2;
                 lim.gore=3;
@@ -970,16 +957,16 @@ void azurirajTriangle(void)
 /*Obradjujemo promenu granice ove figure posle svake rotacije*/
 switch(r_stanje.t_osa){
         case X_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.gore +=1;
                 lim.dole +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.gore -=1;
                 lim.dole -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.gore +=1;
                 lim.dole +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=4;
                 lim.desno=2;
                 lim.gore=2;
@@ -987,13 +974,13 @@ switch(r_stanje.t_osa){
             }
             break;
         case Y_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.desno +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.levo -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.levo +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=4;
                 lim.desno=2;
                 lim.gore=2;
@@ -1001,16 +988,16 @@ switch(r_stanje.t_osa){
             }
             break;
         case Z_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.dole +=1;
                 lim.levo -=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.dole -=1;
                 lim.desno +=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.desno -=1;
                 lim.gore +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=4;
                 lim.desno=2;
                 lim.gore=2;
@@ -1026,13 +1013,13 @@ void azurirajEl(void)
     /*Obradjujemo promenu granice ove figure posle svake rotacije*/
     switch(r_stanje.t_osa){
         case X_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.gore +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.dole -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.dole +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=3;
                 lim.desno=2;
                 lim.gore=2;
@@ -1040,16 +1027,16 @@ void azurirajEl(void)
             }
             break;
         case Y_OSA:
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.levo +=1;
                 lim.desno +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.levo -=1;
                 lim.desno -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.levo +=1;
                 lim.desno +=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=3;
                 lim.desno=2;
                 lim.gore=2;
@@ -1057,17 +1044,16 @@ void azurirajEl(void)
             }
             break;
         case Z_OSA:
-            printf("** brojac %d ***",brojac);
-            if(brojac == 1){
+            if(rot_brojac == 1){
                 lim.dole -=1;
                 lim.desno +=1;
-            }else if(brojac == 2){
+            }else if(rot_brojac == 2){
                 lim.gore +=1;
                 lim.desno -=1;
-            }else if(brojac == 3){
+            }else if(rot_brojac == 3){
                 lim.levo +=1;
                 lim.gore -=1;
-            }else if(brojac == 4){
+            }else if(rot_brojac == 4){
                 lim.levo=3;
                 lim.desno=2;
                 lim.gore=2;
@@ -1085,9 +1071,12 @@ void drawMatricaStanja(void)
         for(v = 0; v < XY_MAX; v++){
             for(u = 0; u < XY_MAX; u++){
                 if(matStanja[c][v][u]==1){
-                    glColor3f(0.2,0.4,0.2);
-                    glTranslatef(u-4,v-4,c-4);
-                    glutSolidCube(1);
+                    glPushMatrix();
+                        set_material(7);
+                        glTranslatef(0.5,0.5,0.5);
+                        glTranslatef(u-4,v-4,c);
+                        glutSolidCube(1);
+                    glPopMatrix();
                 }
             }
         }
@@ -1096,43 +1085,78 @@ void drawMatricaStanja(void)
 
 void azurirajMatricaStanja(int oznaka_figure)
 {
-int a1,b1,c;
+int a,b,c;
 c=z_pomeraj;
 /*Promenljive x_pomeraj i y_pomeraj uvecavamo za 4 zato sto u nasoj mrezi X i Y
  *imaju vrednosti od -4 do 4 a u matrici se pamte i rasporedjuju od 0 do 8*/
-b1=4+y_pomeraj;
-a1=4+x_pomeraj;
+b=4+y_pomeraj;
+a=4+x_pomeraj;
 
-/*crtamo glavnu kocku, a po potrebi za ostale figure nadogradjujemo */
-matStanja[c][b1][a1]=1;
+/*Pamtimo glavnu kocku, a po potrebi za ostale figure nadogradjujemo */
+matStanja[c][b][a]=1;
 
 switch(oznaka_figure){
         case FIGURA_EL:
-            matStanja[c][b1][a1+1]=1;
-            matStanja[c][b1][a1-1]=1;
-            matStanja[c][b1+1][a1-1]=1;
+            pamtimoEl(a,b);
             break;
         case FIGURA_TRIANGLE:
-            matStanja[c][b1+1][a1]=1;
-            matStanja[c][b1][a1+1]=1;
-            matStanja[c][b1-1][a1]=1;
+            pamtimoTriangle(a,b);
             break;
         case FIGURA_ZE:
-            matStanja[c][b1][a1-1]=1;
-            matStanja[c][b1-1][a1]=1;
-            matStanja[c][b1-1][a1+1]=1;
+            pamtimoZe(a,b);
             break;
         case FIGURA_SQUERE:
-            matStanja[c][b1][a1+1]=1;
-            matStanja[c][b1-1][a1]=1;
-            matStanja[c][b1-1][a1+1]=1;
+            pamtimoSquere(a,b);
             break;
         case FIGURA_LINE:
-            matStanja[c][b1+2][a1]=1;
-            matStanja[c][b1+1][a1]=1;
-            matStanja[c][b1-1][a1]=1;
+            pamtimoLine(a,b);
             break;
     }
+}
+
+void pamtimoEl(int a, int b)
+{
+if(rot_brojac == 0){
+    matStanja[z_pomeraj][b][a+1]=1;
+    matStanja[z_pomeraj][b][a-1]=1;
+    matStanja[z_pomeraj][b+1][a-1]=1;
+}
+}
+
+void pamtimoTriangle(int a, int b)
+{
+if(rot_brojac == 0){
+    matStanja[z_pomeraj][b+1][a]=1;
+    matStanja[z_pomeraj][b][a+1]=1;
+    matStanja[z_pomeraj][b-1][a]=1;
+}    
+}
+
+void pamtimoZe(int a, int b)
+{
+if(rot_brojac == 0){
+    matStanja[z_pomeraj][b][a-1]=1;
+    matStanja[z_pomeraj][b-1][a]=1;
+    matStanja[z_pomeraj][b-1][a+1]=1;
+}
+}
+
+void pamtimoSquere(int a, int b)
+{
+if(rot_brojac == 0){
+    matStanja[z_pomeraj][b][a+1]=1;
+    matStanja[z_pomeraj][b-1][a]=1;
+    matStanja[z_pomeraj][b-1][a-1]=1;
+}
+}
+
+void pamtimoLine(int a, int b)
+{
+if(rot_brojac == 0){
+    matStanja[z_pomeraj][b+2][a]=1;
+    matStanja[z_pomeraj][b+1][a]=1;
+    matStanja[z_pomeraj][b-1][a]=1;
+}
 }
 
 int ***alloc_mat(int zlen, int ylen, int xlen)
@@ -1284,6 +1308,16 @@ static void set_material(int id)
             ambient_coeffs[0] = 0.3;
             ambient_coeffs[1] = 0.1;
             ambient_coeffs[2] = 0.0;
+            break;
+        case 7:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 1.0;
+            diffuse_coeffs[1] = 0.0;
+            diffuse_coeffs[2] = 0.6;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.8;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.5;
             break;
     }
 
