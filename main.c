@@ -18,7 +18,7 @@
 /*Definisemo maksimalnu duinu niza random brojeva*/
 #define MAX 30
 /*Definisemo velicinu matrice*/
-#define Z_MAX 11
+#define Z_MAX 12
 #define XY_MAX 8
 /*Definisemo oznaku za osu po kojoj trenutno vrsimo rotaciju*/
 #define X_OSA 0
@@ -34,17 +34,13 @@
 
 /*Definisemo globalne promenljive koje koristimo za pomeranje figura na tastere strelica,
  inicijalno ih postavljamo na 0.5 jer se kocka crta u koordinatnom pocetku a nama treba da bude u polju */
-float x_pomeraj=0.5,y_pomeraj=0.5;
+int x_pomeraj=0,y_pomeraj=0;
 /*Ovda pratimo pomeranje po z osi inicijalno postavljamo da se pocetna figura nalazi na z=11*/
-float z_pomeraj=10.5;
+int z_pomeraj=10;
 
 /*Potrebna nam je pomocna promenljiva koja ce da kontrolise da za svaku novu figuru samo
  *prvi put postavi granice i posle ih azurira na adekvatan nacin*/
 int granice=0;
-
-/*Posto i sledecu figuru crtamo pomocu iste funkcije za sledecu figuru iskljucicemo podesavanje granica*/
-bool sledeca=false;
-
 
 /*Promenljive koje pamte koordinate misa*/
 int mouse_x = 0;
@@ -72,12 +68,15 @@ static void on_arrow(int key, int x, int y);
 static void on_mouse(int  button, int state, int x, int y);
 static void on_motion(int x, int y);
 
+static void inicijalizacija(void);
 static void init_lights();
 static void set_material(int id);
+
+void zaustavljanjeFigure(void);
 void rotiraj(void);
-void azurirajGranice(int i);
 
 /* Deklaracija funkcija za crtanje */
+void crtanjeDelovaScene(void);
 void figure(int r);
 static void drawMreza();
 static void drawFiguraDot();
@@ -87,25 +86,30 @@ static void drawFiguraZe();
 static void drawFiguraSquere();
 static void drawFiguraLine();
 
+/*Na osnovu ovih granicnih funkcija odredjujemo koliko figuru mozemo pomerati levo,
+ * desno, gore ili dole, a da ona ostane u mrezi bez i nakon rotacije*/
+void graniceFigure(int oznaka_figure);
+void azurirajGranice(int oznaka_figure);
+void azurirajEl(void);
+void azurirajTriangle(void);
+void azurirajZe(void);
+void azurirajSquere(void);
+void azurirajLine(void);
+
 /*Funkcije za alokaciju i dealokaiju matrice stanja*/
-int ***mat;
+int ***matStanja;
 int ***alloc_mat(int zlen, int ylen, int xlen);
-void free_mat(int ***mat, int zlen, int ylen);
+void free_mat(int ***matStanja, int zlen, int ylen);
 
 /*Pamtimo spustene figure i crtamo ih*/
 void drawMatricaStanja(void);
-void azurirajMatricaStanja(int p);
+void azurirajMatricaStanja(int oznaka_figure);
 
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
 
 /*Vreme proteklo od pocetka animacije*/
 int time_passed;
-
-/*Pomocne promenljive za promenu koordinata pri rotaciji u funkciji rotiraj()
- pom1 je za rotaciju oko x ose, pom2 oko y ose i pom3 oko z ose
- i mogu imati vrednose 1 ili -1*/
-int pom[] = {0,1,2};
 
 /*Brojimo rotacije u funkciji rotiraj(), vrednosti: 0,1,2,3*/
 int brojac=0;
@@ -117,11 +121,12 @@ struct rot_stanje {
     int t_osa; /* trenutna osa rotacije: 0 for x, 1 for y, 2 for z */
 } r_stanje;
 
-/*Definisemo minimume i maksimume da bismo napravili ogranicenja u okviru mreze*/
+/*Definisemo maksimalni pomeraj u odnosu na pocetni polozaj figure da bismo napravili ogranicenja u okviru mreze*/
 struct limits{
-        int x_min,x_max;
-        int y_min,y_max;
-        int z_min,z_max;
+        int levo;
+        int desno;
+        int gore;
+        int dole;
 }lim;
 
 int main(int argc, char **argv)
@@ -143,32 +148,8 @@ int main(int argc, char **argv)
     glutMouseFunc(on_mouse);
     glutMotionFunc(on_motion);
     
-    /*Inicijalizijem promenljive za pamcenje koordinata misa*/
-    mouse_x = 0;
-    mouse_y = 0;
-    
-    /* Inicijalizujemo matricu rotacije. */
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
-    
-    /* Alociramo memoriju za matricu stanja mreze u kojoj pamtimo
-     * prethodno spustene figure,i na osnovu toga vrsimo 
-     * detekciju sudara sa trenutnom figurom */
-    mat=alloc_mat(Z_MAX,XY_MAX,XY_MAX);
-    if(mat == NULL)
-        exit(EXIT_FAILURE);
-    
-    /*Inicijalizujemo stanje rotacije*/
-    r_stanje.rotacije = false;
-    r_stanje.x = r_stanje.y = r_stanje.z = 0.0f;
-    r_stanje.t_osa = -1;
-    
-    /*Inicijalizujemo niz random brojeva koji cemo koristiti za crtanja figure*/
-    srand(time(NULL));
-    for(rand_brojac=0; rand_brojac<MAX; rand_brojac++){
-        randNiz[rand_brojac]=rand()/(RAND_MAX/6);
-    }
+    /*Vrsimo potrebne inicijalizacije*/
+    inicijalizacija();
     
     /* Obavlja se OpenGL inicijalizacija. */
     glClearColor(0.1, 0.1, 0.1, 0);
@@ -182,6 +163,36 @@ int main(int argc, char **argv)
 
     return 0;
 }
+static void inicijalizacija(void)
+{
+    /*Inicijalizijem promenljive za pamcenje koordinata misa*/
+    mouse_x = 0;
+    mouse_y = 0;
+    
+    /* Inicijalizujemo matricu rotacije. */
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glGetFloatv(GL_MODELVIEW_MATRIX, matrix);
+    
+    /*Inicijalizujemo stanje rotacije*/
+    r_stanje.rotacije = false;
+    r_stanje.x = r_stanje.y = r_stanje.z = 0.0f;
+    r_stanje.t_osa = -1;
+    
+    /*Inicijalizujemo niz random brojeva koji cemo koristiti za crtanja figure*/
+    srand(time(NULL));
+    for(rand_brojac=0; rand_brojac<MAX; rand_brojac++){
+        randNiz[rand_brojac]=rand()/(RAND_MAX/6);
+    }
+        
+    /* Alociramo memoriju za matricu stanja mreze u kojoj pamtimo
+     * prethodno spustene figure,i na osnovu toga vrsimo 
+     * detekciju sudara sa trenutnom figurom */
+    matStanja=alloc_mat(Z_MAX,XY_MAX,XY_MAX);
+    if(matStanja == NULL)
+        exit(EXIT_FAILURE);
+}
+
 static void on_reshape(int width, int height)
 {
     /* Pamte se sirina i visina prozora. */
@@ -230,6 +241,7 @@ static void on_display(void)
     /* Primenjuje se matrica rotacije. */
     glMultMatrixf(matrix);
     
+    /*Podesavamo osvetljenje i materijale*/
     init_lights();
     set_material(6);
     
@@ -237,30 +249,33 @@ static void on_display(void)
     if(rand_brojac == MAX)
         rand_brojac=0;
 
-    /* Crtamo delove scene */
+    /* Crtanje delova scene izdvojeno u funkciji */
+    crtanjeDelovaScene();
+    
+    /*Zaustavljanje figure izdvojeno u funkciji*/
+    zaustavljanjeFigure();
+     
+    /* Nova slika se salje na ekran. */
+    glutSwapBuffers();
+}
+
+void crtanjeDelovaScene(void)
+{
+    /*Crtamo mrezu 3D tetrisa*/
     drawMreza();
     
-    /*Crtamo matricu stanja
+    /*Crtamo matricu stanja iliti popunjenost osnove
     drawMatricaStanja();*/
- 
-    /*Crtamo umanjeno sledecu figuru i smestamo je u gornji desni ugao pored mreze*/
-    glPushMatrix();
-        /*Podesavamo materijale sledece figure*/
-        set_material(randNiz[rand_brojac+1]);
-        glTranslatef(4.8,2,10.5);
-        glScalef(0.5,0.5,0.5);
-        sledeca=true;
-        figure(randNiz[rand_brojac+1]);
-        sledeca=false;
-    glPopMatrix(); 
     
     glPushMatrix();
         /*Podesavamo materijale za svaku figuru zasebno*/
         set_material(randNiz[rand_brojac]);
-        /* Pomeramo teme kocke u koordinatni pocetak i primenjujemo translaciju ne klik strelice, 
-         * oznaka z_pomeraj pomaze da pratimo pad figure */
-        glTranslatef(x_pomeraj,y_pomeraj,z_pomeraj + lim.z_min);
-    
+        /* Pomeramo teme kocke u koordinatni pocetak i */
+        glTranslatef(0.5,0.5,0.5);
+        /*Primenjujemo translaciju ne klik strelice, 
+         *a oznaka z_pomeraj pomaze da pratimo pad figure */
+        glTranslatef(x_pomeraj,y_pomeraj,z_pomeraj);
+        
         /* Primenjujemo rotaciju*/
         glRotatef(r_stanje.x, 1, 0, 0);
         glRotatef(r_stanje.y, 0, 1, 0);
@@ -270,26 +285,40 @@ static void on_display(void)
         figure(randNiz[rand_brojac]);
     glPopMatrix();
     
-    /*Zaustavljanje*/
+        /*Crtamo umanjeno sledecu figuru i smestamo je u gornji desni ugao pored mreze*/
+    glPushMatrix();
+        /*Podesavamo materijale sledece figure*/
+        set_material(randNiz[rand_brojac+1]);
+        glTranslatef(4.8,2,10.5);
+        glScalef(0.5,0.5,0.5);
+        figure(randNiz[rand_brojac+1]);
+    glPopMatrix(); 
+}
+
+void zaustavljanjeFigure(void)
+{
+/*Zaustavljanje*/
     int pom=drop;
-    if(z_pomeraj <= -0.5){
+    if(z_pomeraj <= 0.){
         animation_ongoing = 0;
         time_passed = 0;
         drop++;
         if(drop > pom){
             pom = drop;
             azurirajMatricaStanja(randNiz[rand_brojac]);
-            x_pomeraj=0.5;
-            y_pomeraj=0.5;
-            z_pomeraj=10.5;
+            /*Ponistavamo pomeranja vrsena nad prethodnom figurom*/
+            x_pomeraj=0;
+            y_pomeraj=0;
+            z_pomeraj=10;
+            /*Ponistavamo rotacije vrsene nad prethodnom figurom*/
+            r_stanje.x=0;
+            r_stanje.y=0;
+            r_stanje.z=0;
             rand_brojac++;
             granice=0;
             animation_ongoing=1;
         }
      }
-     
-    /* Nova slika se salje na ekran. */
-    glutSwapBuffers();
 }
 
 void figure(int oznaka_figure)
@@ -319,39 +348,46 @@ void figure(int oznaka_figure)
 
 void rotiraj(void)
 {
-    /*Vrsimo animaciju rotiranja, a ugao za koji rotiramo je 90*/
-    float increment = 90.0;     
-    
-    switch (r_stanje.t_osa)
-    {
+/*Vrsimo animaciju rotiranja, a ugao za koji rotiramo je 90*/
+float increment = 90.0;
+
+switch (r_stanje.t_osa){
     case X_OSA:
         r_stanje.x += increment;
         r_stanje.rotacije = false;
-        azurirajGranice(0);
+        brojac++;
+        azurirajGranice(randNiz[rand_brojac]);
         break;
     case Y_OSA:
         r_stanje.y += increment;
         r_stanje.rotacije = false;
-        azurirajGranice(1);
+        brojac++;
+        azurirajGranice(randNiz[rand_brojac]);
         break;
     case Z_OSA:
         r_stanje.z += increment;
         r_stanje.rotacije = false;
-        azurirajGranice(2);
+        brojac++;
+        azurirajGranice(randNiz[rand_brojac]);
         break;
-    default:
-        break;
-    }
-    /*Forsiramo ponovno iscrtavanje na ekranu*/
-    glutPostRedisplay();
+}
+/*Vracamo brojac na nula jer smo vratili figuru u pocetni polozaj
+*i pravimo mogucnost da ako nismo nasli odgovarajuci polozaj
+* pokusamo rotaciju po nekoj drugoj osi*/
+if(brojac == 4)
+    brojac=0;
+
+/*Forsiramo ponovno iscrtavanje na ekranu*/
+glutPostRedisplay();
 }
 
 static void on_keyboard(unsigned char key, int x, int y)
 {
+printf("levo %d\ndesno %d\ngore %d\ndole %d\n*******\n",lim.levo,lim.desno,lim.gore, lim.dole);
   switch (key) {
     case 27:
         /* Zavrsava se program. */
-        free_mat(mat, Z_MAX, XY_MAX);
+        free_mat(matStanja, Z_MAX, XY_MAX);
         exit(0);
         break;
     case ' ':
@@ -369,7 +405,7 @@ static void on_keyboard(unsigned char key, int x, int y)
     case 'a':
     case 'A':
         /* Rotacija po x osi */
-        if(animation_ongoing){
+        if(animation_ongoing && (brojac==0 || r_stanje.t_osa ==0)){
             r_stanje.t_osa = 0;
             r_stanje.rotacije = true;
             rotiraj();
@@ -379,7 +415,7 @@ static void on_keyboard(unsigned char key, int x, int y)
     case 's':
     case 'S':
         /* Rotacija po y osi */ 
-        if(animation_ongoing){
+        if(animation_ongoing && (brojac==0 || r_stanje.t_osa ==1)){
             r_stanje.t_osa = 1;
             r_stanje.rotacije = true;
             rotiraj();
@@ -389,7 +425,7 @@ static void on_keyboard(unsigned char key, int x, int y)
     case 'd':
     case 'D':
         /* Rotacija po z osi */
-        if(animation_ongoing){
+        if(animation_ongoing && (brojac==0 || r_stanje.t_osa ==2)){
             r_stanje.t_osa = 2;
             r_stanje.rotacije= true;
             rotiraj();
@@ -407,7 +443,7 @@ static void on_timer(int id)
     glutPostRedisplay();
     
     if(animation_ongoing){
-        if(time_passed % 20 == 0)
+        if(time_passed % 30 == 0)
             z_pomeraj = z_pomeraj-1;
         glutTimerFunc(TIMER_INTERVAL,on_timer,TIMER_ID);
     }
@@ -419,25 +455,25 @@ static void on_arrow(int key, int x, int y)
         case GLUT_KEY_UP:
             /*Na komandu strelice nagore povecavamo y_pomeraj i time pomeramo figuru nagore 
              *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
-            if(lim.y_max + y_pomeraj - 0.5 < Y_TO && animation_ongoing)
+            if(lim.gore > y_pomeraj && animation_ongoing)
                 y_pomeraj++;
             break;
         case GLUT_KEY_DOWN:
             /*Na komandu strelice nadole umanjujemo y_pomeraj i time pomeramo figuru nadole 
              *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
-            if(lim.y_min + y_pomeraj -0.5 > Y_FROM && animation_ongoing)
+            if(-lim.dole < y_pomeraj && animation_ongoing)
                 y_pomeraj--;
             break;
         case GLUT_KEY_RIGHT:
             /*Na komandu strelice nadesno povecavamo x_pomeraj i time pomeramo figuru nadesno 
              *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
-            if(lim.x_max + x_pomeraj - 0.5 < X_TO && animation_ongoing)
+            if(lim.desno > x_pomeraj && animation_ongoing)
                 x_pomeraj++;
             break;
         case GLUT_KEY_LEFT:
             /*Na komandu strelice nalevo umanjujemo x_pomeraj i time pomeramo figuru nalevo 
              *ukoliko granica nije prekoracena i ukoliko je animacija pokrenuta*/
-            if(lim.x_min + x_pomeraj - 0.5 > X_FROM && animation_ongoing)
+            if(-lim.levo < x_pomeraj && animation_ongoing)
                 x_pomeraj--;
             break;
   }
@@ -550,39 +586,20 @@ static void drawMreza()
 
 static void drawFiguraDot()
 {
-/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
-if(granice == 0 && !sledeca){
-    /*Inicijalizujemo min i max za svaku osu figure 1*/
-    lim.x_min=0;
-    lim.x_max=1;
-    lim.y_min=0;
-    lim.y_max=1;
-    lim.z_min=0;
-    lim.z_max=1;
-    granice++;
-}
-
     glColor3f(0.2,.1,.9);
     glPushMatrix();
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         glutSolidCube(1);
     glPopMatrix();
 
+    /*Kontrolismo da se samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+    if(granice == 0){
+        graniceFigure(FIGURA_DOT);   
+    }
 }
 
 static void drawFiguraEl()
 {
-/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
-if(granice == 0 && !sledeca){
-    /*Inicijalizujemo min i max za svaku osu figure 2*/
-    lim.x_min=-1;
-    lim.x_max=2;
-    lim.y_min=0;
-    lim.y_max=2;
-    lim.z_min=0;
-    lim.z_max=1;
-    granice++;
-}
     glColor3f(0.9,0.9,0.0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -603,21 +620,15 @@ if(granice == 0 && !sledeca){
         glutSolidCube(1);
     
     glPopMatrix();
+    
+    /*Kontrolismo da se samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+    if(granice == 0){
+        graniceFigure(FIGURA_EL);   
+    }
 }
 
 static void drawFiguraTriangle()
 {
-/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
-if(granice == 0 && !sledeca){
-    /*Inicijalizujemo min i max za svaku osu figure 3*/
-    lim.x_min=0;
-    lim.x_max=2;
-    lim.y_min=-1;
-    lim.y_max=2;
-    lim.z_min=0;
-    lim.z_max=1;
-    granice++;
-}
     glColor3f(0.7,.1,.3);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -635,21 +646,15 @@ if(granice == 0 && !sledeca){
         glTranslatef(1,0,0);
         glutSolidCube(1);
     glPopMatrix();
+    
+    /*Kontrolismo da se samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+    if(granice == 0){
+        graniceFigure(FIGURA_TRIANGLE);   
+    }
 }
 
 static void drawFiguraZe()
 {
-/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
-if(granice == 0 && !sledeca){
-    /*Inicijalizujemo min i max za svaku osu figure 4*/
-    lim.x_min=-1;
-    lim.x_max=1;
-    lim.y_min=-1;
-    lim.y_max=1;
-    lim.z_min=0;
-    lim.z_max=1;
-    granice++;
-}
     glColor3f(0.0,.8,.9);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
    
@@ -667,22 +672,15 @@ if(granice == 0 && !sledeca){
         glTranslatef(1,-1,0);
         glutSolidCube(1);
     glPopMatrix();
+    
+    /*Kontrolismo da se samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+    if(granice == 0){
+        graniceFigure(FIGURA_ZE);   
+    }
 }
 
 static void drawFiguraSquere()
 {
-/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
-if(granice == 0 && !sledeca){
-    /*Inicijalizujemo min i max za svaku osu figure 5*/
-    lim.x_min=0;
-    lim.x_max=2;
-    lim.y_min=-1;
-    lim.y_max=1;
-    lim.z_min=0;
-    lim.z_max=1;
-    granice++;
-}    
-
     glColor3f(0.5,.9,.2);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -700,21 +698,15 @@ if(granice == 0 && !sledeca){
         glTranslatef(1,-1,0);
         glutSolidCube(1);
     glPopMatrix();
+    
+    /*Kontrolismo da se samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+    if(granice == 0){
+        graniceFigure(FIGURA_SQUERE);   
+    }
 }
 
 static void drawFiguraLine()
 { 
-/*Kontrolismo da se samo za tekucu figuru i samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
-if(granice == 0 && !sledeca){   
-    /*Inicijalizujemo min i max za svaku osu figure 6*/
-    lim.x_min=0;
-    lim.x_max=1;
-    lim.y_min=-1;
-    lim.y_max=3;
-    lim.z_min=0;
-    lim.z_max=1;
-    granice++;
-}
     glColor3f(1.0,0.6,0);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     
@@ -732,42 +724,357 @@ if(granice == 0 && !sledeca){
         glTranslatef(0,-1,0);
         glutSolidCube(1);
     glPopMatrix();
+    
+    /*Kontrolismo da se samo prvi put postavi granice i posle azuriraju na adekvatan nacin*/
+    if(granice == 0){
+        graniceFigure(FIGURA_LINE);   
+    }
 }
 
-void azurirajGranice(int i)
+void graniceFigure(int oznaka_figure)
 {
-    int pom_min, pom_max;
-    /*Azuriramo granicne koordinate posle zadate rotacije*/
-        if(brojac == 0 || brojac == 2){
-            pom_min = lim.y_min;
-            pom_max = lim.y_max;
-            lim.y_min = lim.z_min;
-            lim.y_max = lim.z_max;
-            lim.z_min = pom_min;
-            lim.z_max = pom_max;
-            if(brojac == 2){
-                lim.z_min+=1;
-                lim.z_max+=1;
-            }
+/*Inicijalizujemo za svaku figuru makimalan pomeraj do granice*/
+    switch(oznaka_figure){
+        case FIGURA_DOT:    
+            lim.levo=4;
+            lim.desno=3;
+            lim.gore=3;
+            lim.dole=4;
+            granice++;
+            break;
+        case FIGURA_EL:
+            lim.levo=3;
+            lim.desno=2;
+            lim.gore=2;
+            lim.dole=4;
+            granice++;
+            break;
+        case FIGURA_TRIANGLE:
+            lim.levo=4;
+            lim.desno=2;
+            lim.gore=2;
+            lim.dole=3;
+            granice++;
+            break;
+        case FIGURA_ZE:
+            lim.levo=3;
+            lim.desno=2;
+            lim.gore=3;
+            lim.dole=3;
+            granice++;
+            break;
+        case FIGURA_SQUERE:
+            lim.levo=4;
+            lim.desno=2;
+            lim.gore=3;
+            lim.dole=3;
+            granice++;
+            break;
+        case FIGURA_LINE:
+            lim.levo=4;
+            lim.desno=3;
+            lim.gore=1;
+            lim.dole=3;
+            granice++;
+            break;
+    }
+}
 
-            brojac++;
-            pom[i] *= -1;
-        }else if(brojac == 1 || brojac == 3){
-            pom_min = lim.y_min;
-            pom_max = lim.y_max;
-            lim.y_min = pom[i] * lim.z_max;
-            lim.y_max = pom[i] * lim.z_min;
-            lim.z_min = pom_min;
-            lim.z_max = pom_max;
-            if(brojac == 3){
-                lim.y_min+=1;
-                lim.y_max+=1;
-                brojac=0;
-            }
-            
-            brojac++;
-            pom[i] *= -1;
+void azurirajGranice(int oznaka_figure)
+{
+    /*Azuriramo granicne vrednosti posle zadate rotacije
+     *da nam figure ne bi izasle van okvira mreze*/
+    switch(oznaka_figure){
+        case FIGURA_DOT:
+            /*Rotacija nema efekat na ovu figuru pa necemo razmatrati promene 
+             *granicnih vrednosti*/
+            break;
+        case FIGURA_EL:
+            azurirajEl();
+            break;
+        case FIGURA_TRIANGLE:
+            azurirajTriangle();
+            break;
+        case FIGURA_ZE:
+            azurirajZe();
+            break;
+        case FIGURA_SQUERE:
+            azurirajSquere();
+            break;
+        case FIGURA_LINE:
+            azurirajLine();
+            break;
+    }
+}
+
+void azurirajLine(void)
+{
+/*Obradjujemo promenu granice ove figure posle svake rotacije*/
+switch(r_stanje.t_osa){
+    case X_OSA:
+        if(brojac == 1){
+            lim.gore +=2;
+            lim.dole +=1;
+        }else if(brojac == 2){
+            lim.gore -=1;
+            lim.dole -=2;
+        }else if(brojac == 3){
+            lim.gore +=1;
+            lim.dole +=2;
+        }else if(brojac == 4){
+            lim.levo=4;
+            lim.desno=3;
+            lim.gore=1;
+            lim.dole=3;
         }
+        break;
+    case Y_OSA:
+        /*Rotacija po y osi nema efekat na ovu figuru*/
+        break;
+    case Z_OSA:
+        if(brojac == 1){
+            lim.levo -=2;
+            lim.desno -=1;
+            lim.gore +=2;
+            lim.dole +=1;
+        }else if(brojac == 2){
+            lim.levo +=2;
+            lim.desno +=1;
+            lim.gore -=1;
+            lim.dole -=2;
+        }else if(brojac == 3){
+            lim.levo -=1;
+            lim.desno -=2;
+            lim.gore +=1;
+            lim.dole +=2;
+        }else if(brojac == 4){
+            lim.levo=4;
+            lim.desno=3;
+            lim.gore=1;
+            lim.dole=3;
+        }
+        break;
+    }
+}
+
+void azurirajSquere(void)
+{
+/*Obradjujemo promenu granice ove figure posle svake rotacije*/
+switch(r_stanje.t_osa){
+    case X_OSA:
+        if(brojac == 1){
+            lim.dole +=1;
+        }else if(brojac == 2){
+            lim.gore -=1;
+        }else if(brojac == 3){
+            lim.gore +=1;
+        }else if(brojac == 4){
+            lim.levo=4;
+            lim.desno=2;
+            lim.gore=3;
+            lim.dole=3;
+        }
+        break;
+    case Y_OSA:
+        if(brojac == 1){
+            lim.desno +=1;
+        }else if(brojac == 2){
+            lim.levo -=1;
+        }else if(brojac == 3){
+            lim.levo +=1;
+        }else if(brojac == 4){
+            lim.levo=4;
+            lim.desno=2;
+            lim.gore=3;
+            lim.dole=3;
+        }
+        break;
+    case Z_OSA:
+        if(brojac == 1){
+            lim.gore -=1;
+            lim.dole +=1;
+        }else if(brojac == 2){
+            lim.desno +=1;
+            lim.levo -=1;
+        }else if(brojac == 3){
+            lim.gore +=1;
+            lim.dole -=1;
+        }else if(brojac == 4){
+            lim.levo=4;
+            lim.desno=2;
+            lim.gore=3;
+            lim.dole=3;
+        }
+        break;
+    }
+}
+
+void azurirajZe(void)
+{
+/*Obradjujemo promenu granice ove figure posle svake rotacije*/
+switch(r_stanje.t_osa){
+        case X_OSA:
+            if(brojac == 1){
+                lim.dole +=1;
+            }else if(brojac == 2){
+                lim.gore -=1;
+            }else if(brojac == 3){
+                lim.gore +=1;
+            }else if(brojac == 4){
+                lim.levo=3;
+                lim.desno=2;
+                lim.gore=3;
+                lim.dole=3;
+            }
+            break;
+        case Y_OSA:
+            if(brojac == 1){
+                lim.levo +=1;
+                lim.desno +=1;
+            }else if(brojac == 2){
+                lim.levo -=1;
+                lim.desno -=1;
+            }else if(brojac == 3){
+                lim.levo +=1;
+                lim.desno +=1;
+            }else if(brojac == 4){
+                lim.levo=3;
+                lim.desno=2;
+                lim.gore=3;
+                lim.dole=3;
+            }
+            break;
+        case Z_OSA:
+            if(brojac == 1){
+                lim.gore -=1;
+                lim.levo +=1;
+            }else if(brojac == 2){
+                lim.dole +=1;
+                lim.levo -=1;
+            }else if(brojac == 3){
+                lim.desno +=1;
+                lim.dole -=1;
+            }else if(brojac == 4){
+                lim.levo=3;
+                lim.desno=2;
+                lim.gore=3;
+                lim.dole=3;
+            }
+    
+            break;
+    }    
+}
+
+void azurirajTriangle(void)
+{
+/*Obradjujemo promenu granice ove figure posle svake rotacije*/
+switch(r_stanje.t_osa){
+        case X_OSA:
+            if(brojac == 1){
+                lim.gore +=1;
+                lim.dole +=1;
+            }else if(brojac == 2){
+                lim.gore -=1;
+                lim.dole -=1;
+            }else if(brojac == 3){
+                lim.gore +=1;
+                lim.dole +=1;
+            }else if(brojac == 4){
+                lim.levo=4;
+                lim.desno=2;
+                lim.gore=2;
+                lim.dole=3;
+            }
+            break;
+        case Y_OSA:
+            if(brojac == 1){
+                lim.desno +=1;
+            }else if(brojac == 2){
+                lim.levo -=1;
+            }else if(brojac == 3){
+                lim.levo +=1;
+            }else if(brojac == 4){
+                lim.levo=4;
+                lim.desno=2;
+                lim.gore=2;
+                lim.dole=3;
+            }
+            break;
+        case Z_OSA:
+            if(brojac == 1){
+                lim.dole +=1;
+                lim.levo -=1;
+            }else if(brojac == 2){
+                lim.dole -=1;
+                lim.desno +=1;
+            }else if(brojac == 3){
+                lim.desno -=1;
+                lim.gore +=1;
+            }else if(brojac == 4){
+                lim.levo=4;
+                lim.desno=2;
+                lim.gore=2;
+                lim.dole=3;
+            }
+    
+            break;
+    }
+}
+
+void azurirajEl(void)
+{
+    /*Obradjujemo promenu granice ove figure posle svake rotacije*/
+    switch(r_stanje.t_osa){
+        case X_OSA:
+            if(brojac == 1){
+                lim.gore +=1;
+            }else if(brojac == 2){
+                lim.dole -=1;
+            }else if(brojac == 3){
+                lim.dole +=1;
+            }else if(brojac == 4){
+                lim.levo=3;
+                lim.desno=2;
+                lim.gore=2;
+                lim.dole=4;
+            }
+            break;
+        case Y_OSA:
+            if(brojac == 1){
+                lim.levo +=1;
+                lim.desno +=1;
+            }else if(brojac == 2){
+                lim.levo -=1;
+                lim.desno -=1;
+            }else if(brojac == 3){
+                lim.levo +=1;
+                lim.desno +=1;
+            }else if(brojac == 4){
+                lim.levo=3;
+                lim.desno=2;
+                lim.gore=2;
+                lim.dole=4;
+            }
+            break;
+        case Z_OSA:
+            printf("** brojac %d ***",brojac);
+            if(brojac == 1){
+                lim.dole -=1;
+                lim.desno +=1;
+            }else if(brojac == 2){
+                lim.gore +=1;
+                lim.desno -=1;
+            }else if(brojac == 3){
+                lim.levo +=1;
+                lim.gore -=1;
+            }else if(brojac == 4){
+                lim.levo=3;
+                lim.desno=2;
+                lim.gore=2;
+                lim.dole=4;
+            }
+            break;
+    }
 }
 
 void drawMatricaStanja(void)
@@ -777,7 +1084,7 @@ void drawMatricaStanja(void)
 	for(c = 0; c < Z_MAX; c++){
         for(v = 0; v < XY_MAX; v++){
             for(u = 0; u < XY_MAX; u++){
-                if(mat[c][v][u]==1){
+                if(matStanja[c][v][u]==1){
                     glColor3f(0.2,0.4,0.2);
                     glTranslatef(u-4,v-4,c-4);
                     glutSolidCube(1);
@@ -797,33 +1104,33 @@ b1=4+y_pomeraj;
 a1=4+x_pomeraj;
 
 /*crtamo glavnu kocku, a po potrebi za ostale figure nadogradjujemo */
-mat[c][b1][a1]=1;
+matStanja[c][b1][a1]=1;
 
 switch(oznaka_figure){
         case FIGURA_EL:
-            mat[c][b1][a1+1]=1;
-            mat[c][b1][a1-1]=1;
-            mat[c][b1+1][a1-1]=1;
+            matStanja[c][b1][a1+1]=1;
+            matStanja[c][b1][a1-1]=1;
+            matStanja[c][b1+1][a1-1]=1;
             break;
         case FIGURA_TRIANGLE:
-            mat[c][b1+1][a1]=1;
-            mat[c][b1][a1+1]=1;
-            mat[c][b1-1][a1]=1;
+            matStanja[c][b1+1][a1]=1;
+            matStanja[c][b1][a1+1]=1;
+            matStanja[c][b1-1][a1]=1;
             break;
         case FIGURA_ZE:
-            mat[c][b1][a1-1]=1;
-            mat[c][b1-1][a1]=1;
-            mat[c][b1-1][a1+1]=1;
+            matStanja[c][b1][a1-1]=1;
+            matStanja[c][b1-1][a1]=1;
+            matStanja[c][b1-1][a1+1]=1;
             break;
         case FIGURA_SQUERE:
-            mat[c][b1][a1+1]=1;
-            mat[c][b1-1][a1]=1;
-            mat[c][b1-1][a1+1]=1;
+            matStanja[c][b1][a1+1]=1;
+            matStanja[c][b1-1][a1]=1;
+            matStanja[c][b1-1][a1+1]=1;
             break;
         case FIGURA_LINE:
-            mat[c][b1+2][a1]=1;
-            mat[c][b1+1][a1]=1;
-            mat[c][b1-1][a1]=1;
+            matStanja[c][b1+2][a1]=1;
+            matStanja[c][b1+1][a1]=1;
+            matStanja[c][b1-1][a1]=1;
             break;
     }
 }
@@ -833,49 +1140,49 @@ int ***alloc_mat(int zlen, int ylen, int xlen)
     /*Alokacija memorije za cuvanje matrice stanja mreze*/
     int u, v;
 
-    if ((mat = malloc(zlen * sizeof(*mat))) == NULL) {
+    if ((matStanja = malloc(zlen * sizeof(*matStanja))) == NULL) {
         perror("malloc 1");
         return NULL;
     }
 
     for (u=0; u < zlen; ++u)
-        mat[u] = NULL;
+        matStanja[u] = NULL;
 
     for (u=0; u < zlen; ++u)
-        if ((mat[u] = malloc(ylen * sizeof(*mat[u]))) == NULL) {
+        if ((matStanja[u] = malloc(ylen * sizeof(*matStanja[u]))) == NULL) {
             /*Ako alokacija nije uspela oslobadjamo vec alocirano i saljemo poruku za gresku*/
             perror("malloc 2");
-            free_mat(mat, zlen, ylen);
+            free_mat(matStanja, zlen, ylen);
             return NULL;
         }
 
     for (u=0; u < zlen; ++u)
         for (v=0; v < ylen; ++v)
-            mat[u][v] = NULL;
+            matStanja[u][v] = NULL;
 
     for (u=0; u < zlen; ++u)
         for (v=0; v < ylen; ++v)
-            if ((mat[u][v] = malloc(xlen * sizeof (*mat[u][v]))) == NULL) {
+            if ((matStanja[u][v] = malloc(xlen * sizeof (*matStanja[u][v]))) == NULL) {
                 /*Ako alokacija nije uspela oslobadjamo vec alocirano i saljemo poruku za gresku*/
                 perror("malloc 3");
-                free_mat(mat, zlen, ylen);
+                free_mat(matStanja, zlen, ylen);
                 return NULL;
             }
 
-    return mat;
+    return matStanja;
 }
-void free_mat(int ***mat, int zlen, int ylen)
+void free_mat(int ***matStanja, int zlen, int ylen)
 {
     int u, v;
 
     for (u=0; u < zlen; ++u) {
-        if (mat[u] != NULL) {
+        if (matStanja[u] != NULL) {
             for (v=0; v < ylen; ++v)
-                free(mat[u][v]);
-            free(mat[u]);
+                free(matStanja[u][v]);
+            free(matStanja[u]);
         }
     }
-    free(mat);
+    free(matStanja);
 }
 
 static void init_lights()
