@@ -73,6 +73,7 @@ static void init_lights();
 static void set_material(int id);
 
 void zaustavljanjeFigure(void);
+void vratiNaInit(void);
 void rotiraj(void);
 
 /* Deklaracija funkcija za crtanje */
@@ -110,6 +111,9 @@ void pamtimoZe(int a, int b);
 void pamtimoSquere(int a, int b);
 void pamtimoLine(int a, int b);
 
+void najniziDeoFigure(int oznaka_figure);
+void azurirajNajniziDeoFigure(int oznaka_figure);
+
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
 
@@ -133,6 +137,11 @@ struct limits{
         int gore;
         int dole;
 }lim;
+
+/*Pratimo najnizu kocku figure*/
+struct lowest{
+    int x,y,z;
+}low[4];
 
 int main(int argc, char **argv)
 {
@@ -184,6 +193,14 @@ static void inicijalizacija(void)
     r_stanje.x = r_stanje.y = r_stanje.z = 0.0f;
     r_stanje.t_osa = -1;
     
+    /*Inicijalizujemo sve najnize tacke figure,kojih ukupno moze da ima 4, na 0*/
+    int i;
+    for(i=0;i<4;i++){
+        low[i].x=0;
+        low[i].y=0;
+        low[i].z=0;
+    }
+    
     /*Inicijalizujemo niz random brojeva koji cemo koristiti za crtanja figure*/
     srand(time(NULL));
     for(rand_brojac=0; rand_brojac<MAX; rand_brojac++){
@@ -196,6 +213,14 @@ static void inicijalizacija(void)
     matStanja=alloc_mat(Z_MAX,XY_MAX,XY_MAX);
     if(matStanja == NULL)
         exit(EXIT_FAILURE);
+    
+    /*Inicijalizujem matricu stanja na nule*/
+    int u,v,c;
+ 
+	for(c = 0; c < Z_MAX; c++)
+        for(v = 0; v < XY_MAX; v++)
+            for(u = 0; u < XY_MAX; u++)
+                matStanja[c][v][u]=0;
 }
 
 static void on_reshape(int width, int height)
@@ -231,7 +256,7 @@ static void on_display(void)
     
     /*Podesavamo osvetljenje i materijale*/
     init_lights();
-    set_material(6);
+    set_material(16);
     
     /*Ako smo dosli do kraja RANDOM niza  vracamo se na pocetak*/
     if(rand_brojac == MAX)
@@ -285,28 +310,53 @@ void crtanjeDelovaScene(void)
 
 void zaustavljanjeFigure(void)
 {
-/*Zaustavljanje*/
-    int pom=drop;
-    if(z_pomeraj <= 0.){
-        animation_ongoing = 0;
-        time_passed = 0;
-        drop++;
-        if(drop > pom){
-            pom = drop;
-            azurirajMatricaStanja(randNiz[rand_brojac]);
-            /*Ponistavamo pomeranja vrsena nad prethodnom figurom*/
-            x_pomeraj=0;
-            y_pomeraj=0;
-            z_pomeraj=10;
-            /*Ponistavamo rotacije vrsene nad prethodnom figurom*/
-            r_stanje.x=0;
-            r_stanje.y=0;
-            r_stanje.z=0;
-            rand_brojac++;
-            granice=0;
-            animation_ongoing=1;
+/*Zaustavljanje
+    int pom=drop;*/
+    
+/*Provera koalizije*/
+int u,v,c;
+int i;
+ 
+for(c = Z_MAX-1; c >= 0; c--){
+    for(v = 0; v < XY_MAX; v++){
+        for(u = 0; u < XY_MAX; u++){
+            for(i=0;i<4;i++){
+                if((matStanja[c][v][u]==1 && c==(z_pomeraj+low[i].z-1) && v==(low[i].y+y_pomeraj) && u==(low[i].x+x_pomeraj)) || z_pomeraj <= 0){
+                    animation_ongoing = 0;
+                    time_passed = 0;
+                    drop++;                
+                    azurirajMatricaStanja(randNiz[rand_brojac]);
+                    vratiNaInit();
+                    rand_brojac++;
+                    animation_ongoing=1;
+                }
+            }
         }
-     }
+    }
+}
+
+}
+
+void vratiNaInit(void)
+{
+/*Ponistavamo pomeranja vrsena nad prethodnom figurom*/
+x_pomeraj=0;
+y_pomeraj=0;
+z_pomeraj=10;
+/*Ponistavamo rotacije vrsene nad prethodnom figurom*/
+r_stanje.x=0;
+r_stanje.y=0;
+r_stanje.z=0;  
+
+/*Ponistavamo koordinate najnizih kocki prethodne figure*/
+int i;
+for(i=0;i<4;i++){
+    low[i].x=0;
+    low[i].y=0;
+    low[i].z=0;
+}
+
+granice=0;
 }
 
 void figure(int oznaka_figure)
@@ -374,6 +424,7 @@ static void on_keyboard(unsigned char key, int x, int y)
   switch (key) {
     case 27:
         /* Zavrsava se program. */
+        printf("\n****Palo je %d figura!****\n\n",drop);
         free_mat(matStanja, Z_MAX, XY_MAX);
         exit(0);
         break;
@@ -728,6 +779,8 @@ void graniceFigure(int oznaka_figure)
             lim.gore=3;
             lim.dole=4;
             granice++;
+            /*Odradjujemo polozaj u mrezi najnizih kocki figure*/
+            najniziDeoFigure(oznaka_figure);
             break;
         case FIGURA_EL:
             lim.levo=3;
@@ -735,6 +788,8 @@ void graniceFigure(int oznaka_figure)
             lim.gore=2;
             lim.dole=4;
             granice++;
+            /*Odradjujemo polozaj u mrezi najnizih kocki figure*/
+            najniziDeoFigure(oznaka_figure);
             break;
         case FIGURA_TRIANGLE:
             lim.levo=4;
@@ -742,6 +797,8 @@ void graniceFigure(int oznaka_figure)
             lim.gore=2;
             lim.dole=3;
             granice++;
+            /*Odradjujemo polozaj u mrezi najnizih kocki figure*/
+            najniziDeoFigure(oznaka_figure);
             break;
         case FIGURA_ZE:
             lim.levo=3;
@@ -749,6 +806,8 @@ void graniceFigure(int oznaka_figure)
             lim.gore=3;
             lim.dole=3;
             granice++;
+            /*Odradjujemo polozaj u mrezi najnizih kocki figure*/
+            najniziDeoFigure(oznaka_figure);
             break;
         case FIGURA_SQUERE:
             lim.levo=4;
@@ -756,6 +815,8 @@ void graniceFigure(int oznaka_figure)
             lim.gore=3;
             lim.dole=3;
             granice++;
+            /*Odradjujemo polozaj u mrezi najnizih kocki figure*/
+            najniziDeoFigure(oznaka_figure);
             break;
         case FIGURA_LINE:
             lim.levo=4;
@@ -763,6 +824,71 @@ void graniceFigure(int oznaka_figure)
             lim.gore=1;
             lim.dole=3;
             granice++;
+            /*Odradjujemo polozaj u mrezi najnizih kocki figure*/
+            najniziDeoFigure(oznaka_figure);
+            break;
+    }
+}
+
+void najniziDeoFigure(int oznaka_figure)
+{
+/*Inicijalizujemo za svaku figuru makimalan pomeraj do granice*/
+    switch(oznaka_figure){
+        case FIGURA_DOT:    
+            /*Definisemo najnizu tacku za detekciju sudara*/
+            low[0].x=4;
+            low[0].y=4;
+            break;
+        case FIGURA_EL:
+            /*Definisemo najnizu tacku za detekciju sudara,koordinate odgovaraju polju u mrezi*/
+            low[0].x=4;
+            low[0].y=4;
+            low[1].x=3;
+            low[1].y=4;
+            low[2].x=3;
+            low[2].y=3;
+            low[3].x=5;
+            low[3].y=4;
+            break;
+        case FIGURA_TRIANGLE:
+            low[0].x=4;
+            low[0].y=4;
+            low[1].x=3;
+            low[1].y=4;
+            low[2].x=4;
+            low[2].y=3;
+            low[3].x=5;
+            low[3].y=4;
+            break;
+        case FIGURA_ZE:
+            low[0].x=4;
+            low[0].y=4;
+            low[1].x=3;
+            low[1].y=4;
+            low[2].x=4;
+            low[2].y=5;
+            low[3].x=5;
+            low[3].y=5;
+            break;
+        case FIGURA_SQUERE:
+            low[0].x=4;
+            low[0].y=4;
+            low[1].x=5;
+            low[1].y=4;
+            low[2].x=4;
+            low[2].y=5;
+            low[3].x=5;
+            low[3].y=5;
+            break;
+        case FIGURA_LINE:
+            low[0].x=4;
+            low[0].y=4;
+            low[1].x=4;
+            low[1].y=3;
+            low[2].x=4;
+            low[2].y=2;
+            low[3].x=4;
+            low[3].y=5;
             break;
     }
 }
@@ -792,6 +918,11 @@ void azurirajGranice(int oznaka_figure)
             azurirajLine();
             break;
     }
+}
+
+void azurirajNajniziDeoFigure(int oznaka_figure)
+{
+    
 }
 
 void azurirajLine(void)
@@ -1066,13 +1197,15 @@ void azurirajEl(void)
 void drawMatricaStanja(void)
 {
  int u,v,c;
+ 
+ glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
     /*Crtamo matricu stanja*/
 	for(c = 0; c < Z_MAX; c++){
+        set_material(6+c);
         for(v = 0; v < XY_MAX; v++){
             for(u = 0; u < XY_MAX; u++){
                 if(matStanja[c][v][u]==1){
                     glPushMatrix();
-                        set_material(7);
                         glTranslatef(0.5,0.5,0.5);
                         glTranslatef(u-4,v-4,c);
                         glutSolidCube(1);
@@ -1146,7 +1279,7 @@ void pamtimoSquere(int a, int b)
 if(rot_brojac == 0){
     matStanja[z_pomeraj][b][a+1]=1;
     matStanja[z_pomeraj][b-1][a]=1;
-    matStanja[z_pomeraj][b-1][a-1]=1;
+    matStanja[z_pomeraj][b-1][a+1]=1;
 }
 }
 
@@ -1309,15 +1442,75 @@ static void set_material(int id)
             ambient_coeffs[1] = 0.1;
             ambient_coeffs[2] = 0.0;
             break;
-        case 7:
+        case 6:
             /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
-            diffuse_coeffs[0] = 1.0;
+            diffuse_coeffs[0] = 0.0;
             diffuse_coeffs[1] = 0.0;
             diffuse_coeffs[2] = 0.6;
             /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
-            ambient_coeffs[0] = 0.8;
+            ambient_coeffs[0] = 0.0;
             ambient_coeffs[1] = 0.0;
-            ambient_coeffs[2] = 0.5;
+            ambient_coeffs[2] = 0.2;
+            break;
+        case 7:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.8;
+            diffuse_coeffs[1] = 0.0;
+            diffuse_coeffs[2] = 0.4;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.5;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.1;
+            break;
+        case 8:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.8;
+            diffuse_coeffs[1] = 0.7;
+            diffuse_coeffs[2] = 0.0;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.5;
+            ambient_coeffs[1] = 0.4;
+            ambient_coeffs[2] = 0.0;
+            break;
+        case 9:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.0;
+            diffuse_coeffs[1] = 0.7;
+            diffuse_coeffs[2] = 0.0;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.2;
+            ambient_coeffs[2] = 0.0;
+            break;
+        case 10:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.0;
+            diffuse_coeffs[1] = 0.6;
+            diffuse_coeffs[2] = 0.4;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.3;
+            ambient_coeffs[2] = 0.1;
+            break;
+        case 11:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.6;
+            diffuse_coeffs[1] = 0.6;
+            diffuse_coeffs[2] = 0.0;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.3;
+            ambient_coeffs[1] = 0.3;
+            ambient_coeffs[2] = 0.0;
+            break;
+        case 12:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.6;
+            diffuse_coeffs[1] = 0.0;
+            diffuse_coeffs[2] = 0.0;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.3;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.0;
             break;
     }
 
