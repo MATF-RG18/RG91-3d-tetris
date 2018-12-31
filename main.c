@@ -96,6 +96,8 @@ void azurirajTriangle(void);
 void azurirajZe(void);
 void azurirajSquere(void);
 void azurirajLine(void);
+/*Proveravamoo da li je figura nakon rotacije ostala u okvirima mreze*/
+void proveriFigIn(void);
 
 /*Funkcije za alokaciju i dealokaiju matrice stanja*/
 int ***matStanja;
@@ -112,7 +114,6 @@ void pamtimoSquere(int a, int b);
 void pamtimoLine(int a, int b);
 
 void najniziDeoFigure(int oznaka_figure);
-void azurirajNajniziDeoFigure(int oznaka_figure);
 
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
@@ -415,8 +416,24 @@ switch (r_stanje.t_osa){
 if(rot_brojac == 4)
     rot_brojac=0;
 
+/*Ako je figura pre rotacije bila na granici moze se desiti da posle rotacije izadje van okvira mreze, vrsimo proveru pa ako jeste vracamo je u mrezu*/
+proveriFigIn();
+
 /*Forsiramo ponovno iscrtavanje na ekranu*/
 glutPostRedisplay();
+}
+
+void proveriFigIn(void)
+{
+/*Proveravamo da li je figura ostala u mrezi, ako nije vracamo je*/
+if(lim.gore < y_pomeraj)
+    y_pomeraj-=y_pomeraj-lim.gore;
+else if(-lim.dole > y_pomeraj)
+    y_pomeraj+=-(y_pomeraj-lim.dole);
+else if(lim.desno < x_pomeraj)
+    x_pomeraj-=x_pomeraj-lim.desno;
+else if(-lim.levo > x_pomeraj)
+    x_pomeraj+=-(x_pomeraj-lim.levo);
 }
 
 static void on_keyboard(unsigned char key, int x, int y)
@@ -918,11 +935,6 @@ void azurirajGranice(int oznaka_figure)
             azurirajLine();
             break;
     }
-}
-
-void azurirajNajniziDeoFigure(int oznaka_figure)
-{
-    
 }
 
 void azurirajLine(void)
@@ -1504,13 +1516,43 @@ static void set_material(int id)
             break;
         case 12:
             /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
-            diffuse_coeffs[0] = 0.6;
-            diffuse_coeffs[1] = 0.0;
+            diffuse_coeffs[0] = 0.1;
+            diffuse_coeffs[1] = 0.9;
             diffuse_coeffs[2] = 0.0;
             /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
-            ambient_coeffs[0] = 0.3;
-            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.3;
             ambient_coeffs[2] = 0.0;
+            break;
+        case 13:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.0;
+            diffuse_coeffs[1] = 0.1;
+            diffuse_coeffs[2] = 0.5;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.2;
+            break;
+        case 14:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.7;
+            diffuse_coeffs[1] = 0.0;
+            diffuse_coeffs[2] = 0.1;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.4;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.1;
+            break;
+        case 15:
+            /* Koeficijenti difuzne refleksije materijala za naslagane figure. */
+            diffuse_coeffs[0] = 0.1;
+            diffuse_coeffs[1] = 0.0;
+            diffuse_coeffs[2] = 0.9;
+            /* Koeficijenti ambijentalne refleksije materijala za naslagane figure. */
+            ambient_coeffs[0] = 0.0;
+            ambient_coeffs[1] = 0.0;
+            ambient_coeffs[2] = 0.6;
             break;
     }
 

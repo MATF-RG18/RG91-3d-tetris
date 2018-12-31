@@ -21,3 +21,7 @@ Rotaciju figure po razlicitim osama vrsimo naizmenicno.
 Ako smo naprimer figuru rotirali jednom po x osi nije moguce tu figuru 
 rotirati ni po y, ni po z osi sve dok se figura ne izrotira za pun ugao.
 Nakon toga opet mozemo da biramo po kojoj osi zelimo da rotiramo.
+
+build:
+make
+./tetris
