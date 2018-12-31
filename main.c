@@ -115,6 +115,9 @@ void pamtimoLine(int a, int b);
 
 void najniziDeoFigure(int oznaka_figure);
 
+/*Proveraavamo da li je kraj igre*/
+void kraj(void);
+
 /*parametar za proveru da li je animacija pokrenuta*/
 int animation_ongoing;
 
@@ -268,7 +271,7 @@ static void on_display(void)
     
     /*Zaustavljanje figure izdvojeno u funkciji*/
     zaustavljanjeFigure();
-     
+    
     /* Nova slika se salje na ekran. */
     glutSwapBuffers();
 }
@@ -311,9 +314,6 @@ void crtanjeDelovaScene(void)
 
 void zaustavljanjeFigure(void)
 {
-/*Zaustavljanje
-    int pom=drop;*/
-    
 /*Provera koalizije*/
 int u,v,c;
 int i;
@@ -322,12 +322,16 @@ for(c = Z_MAX-1; c >= 0; c--){
     for(v = 0; v < XY_MAX; v++){
         for(u = 0; u < XY_MAX; u++){
             for(i=0;i<4;i++){
-                if((matStanja[c][v][u]==1 && c==(z_pomeraj+low[i].z-1) && v==(low[i].y+y_pomeraj) && u==(low[i].x+x_pomeraj)) || z_pomeraj <= 0){
+                if((matStanja[c][v][u]==1 && c==(z_pomeraj+low[i].z-1) && v==(low[i].y+y_pomeraj) && u==(low[i].x+x_pomeraj)) || z_pomeraj <= 0 || z_pomeraj+low[i].z <=0){
                     animation_ongoing = 0;
                     time_passed = 0;
                     drop++;                
                     azurirajMatricaStanja(randNiz[rand_brojac]);
                     vratiNaInit();
+                        
+                    /*Provera da i je kraj igre*/
+                    kraj();
+                    
                     rand_brojac++;
                     animation_ongoing=1;
                 }
@@ -336,6 +340,16 @@ for(c = Z_MAX-1; c >= 0; c--){
     }
 }
 
+}
+
+void kraj(void)
+{    
+    if(matStanja[z_pomeraj][4][4]==1){
+        /* Zavrsava se program. */
+        printf("\n------------- KRAJ IGRE -------------\n\n****Palo je %d figura!****\n\n",drop);
+        free_mat(matStanja, Z_MAX, XY_MAX);
+        exit(0);
+    }
 }
 
 void vratiNaInit(void)
@@ -1297,10 +1311,19 @@ if(rot_brojac == 0){
 
 void pamtimoLine(int a, int b)
 {
+int p,q,r,i;
+    
 if(rot_brojac == 0){
     matStanja[z_pomeraj][b+2][a]=1;
     matStanja[z_pomeraj][b+1][a]=1;
     matStanja[z_pomeraj][b-1][a]=1;
+}else if(rot_brojac == 2 || rot_brojac == 4){
+    for(i=0;i<4;i++){
+        p=z_pomeraj+low[i].z;
+        q=y_pomeraj+low[i].y;
+        r=x_pomeraj+low[i].x;
+        matStanja[p][q][r]=1;
+    }
 }
 }
 
@@ -1340,6 +1363,7 @@ int ***alloc_mat(int zlen, int ylen, int xlen)
 
     return matStanja;
 }
+
 void free_mat(int ***matStanja, int zlen, int ylen)
 {
     int u, v;
